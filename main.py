@@ -2,6 +2,35 @@ import os
 import zmq
 import threading
 
+from logbook import Logger, StreamHandler
+import sys
+
+StreamHandler(sys.stdout).push_application()
+
+from reactor.pacman.repository import *
+
+
+def update_fs(db, directory):
+    return False
+
+def find_package_dirs(db, directory):
+    dirs = []
+    for f in os.listdir(directory):
+        src_x86_path = os.path.join(directory, f, 'repos', 'core-x86_64')
+        pkgbuild_x86_path = os.path.join(src_x86_path, 'PKGBUILD')
+        if os.path.isdir(src_x86_path) and os.path.exists(pkgbuild_x86_path):
+            dirs.append(src_x86_path)
+    return dirs
+
+#repo = BinaryDatabase('archlinux-bin', '/home/reactor/pacman-repo/pacman.conf')
+source = SourceDatabase('archlinux-src', '/home/reactor/packages/archlinux', update_fs, find_package_dirs)
+
+print(repo)
+print(source)
+
+
+
+"""
 from reactor.pacman.srcdir_server import SrcDirServer
 from reactor.pacman.repo_server import RepoServer
 from reactor.terminal.terminal import Terminal
@@ -39,3 +68,4 @@ repo_server_thread.start()
 
 terminal = Terminal()
 terminal.run(context, CONFIG['terminal'])
+"""

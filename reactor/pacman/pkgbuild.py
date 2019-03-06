@@ -1,6 +1,6 @@
 import subprocess
 
-import reactor.common.pkg as pkgformat 
+from ..package import Dependency, Version, Package
 
 PKGBUILD_PROPERTIES = ['pkgname', 'pkgver', 'pkgrel','epoch', 'pkgdesc']
 PKGBUILD_PROP_ARRAYS = ['arch', 'groups',
@@ -12,11 +12,11 @@ PKGBUILD_PROP_ARRAYS = ['arch', 'groups',
 class PkgBuild:
     _file_path = None
 
-    def __init__(self, pkgbuild_file_path):
-        self._file_path = pkgbuild_file_path
+    def __init__(self, file_path):
+        self._file_path = file_path
 
     @property
-    def info(self):
+    def package_info(self):
         cmd = "source {} > /dev/null".format(self._file_path);
         for prop in PKGBUILD_PROPERTIES:
             cmd = cmd + " && echo ${}".format(prop)
@@ -41,18 +41,21 @@ class PkgBuild:
             lines = lines[length:]
             props[p] = array
 
+        if len(props['pkgname']) <= 0:
+            return None
 
-        return {'name':props['pkgname'],
-                'version': pkgformat.parse_version(props['pkgver'], 
-                                                 props['pkgrel'],  
-                                                 int(props['epoch']) if len(props['epoch']) > 0 else None),
-                'desc': props['pkgdesc'],
-                'arch': props['arch'],
-                'groups': props['groups'],
-                'depends': props['depends'],
-                'make_depends': props['makedepends'],
-                'check_depends': props['checkdepends'],
-                'opt_depends': props['optdepends'],
-                'provides': props['provides'],
-                'conflicts': props['conflicts'],
-                'replaces': props['replaces']}
+        return Package(name=props['pkgname'],
+                       description=props['pkgdesc'],
+                       version=Version.parse(props['pkgver'], 
+                                             props['pkgrel'],  
+                                             int(props['epoch']) if len(props['epoch']) > 0 else None),
+                       arch=props['arch'],
+                       groups=props['groups'],
+                       depends=[Dependency.parse(x) for x in props['depends']],
+                       make_depends=[Dependency.parse(x) for x in props['makedepends']],
+                       check_depends=[Dependency.parse(x) for x in props['checkdepends']],
+                       opt_depends=[Dependency.parse(x) for x in props['optdepends']],
+                       provides=[Dependency.parse(x) for x in props['provides']],
+                       conflicts=[Dependency.parse(x) for x in props['conflicts']],
+                       replaces=[Dependency.parse(x) for x in props['replaces']],
+                       artifacts={})
