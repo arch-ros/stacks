@@ -8,18 +8,17 @@ import sys
 StreamHandler(sys.stdout).push_application()
 
 from reactor.pacman.repository import *
+from reactor.pacman.database import *
+from reactor.database import *
+from reactor.pacman.chroot import *
 from reactor.builder import *
-from reactor.chroot import *
-
-
 
 # For built repository
-
-arch_repo = BinaryDatabase('archlinux-bin', '/home/reactor/pacman-repo/pacman.conf')
+pearl_bin = BinaryDatabase('pearl-bin', '/home/reactor/pacman-repo/pacman.conf')
+pearl_repo = Repository('pearl-repo', '/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
 
 
 # For archlinux source repository
-
 def update_fs(db, directory):
     return False
 
@@ -35,7 +34,6 @@ def find_package_dirs(db, directory):
 arch_source = SourceDatabase('archlinux-src', '/home/reactor/packages/archlinux', update_fs, find_package_dirs)
 
 # For aur source repository
-
 def update_fs(db, directory):
     return False
 
@@ -50,53 +48,25 @@ def find_package_dirs(db, directory):
 
 aur_source = SourceDatabase('aur-src', '/home/reactor/packages/aur', update_fs, find_package_dirs)
 
+# Combined source repository
+pearl_src = MergedDatabase('pearl-src', [arch_source, aur_source])
+
+
+
 # Create a build queue
 builders = [ChrootBuilder('worker1', '/home/reactor/chroots/worker1',
                                      '/home/reactor/chroots/mkarchroot',
                                      '/home/reactor/chroots/makechrootpkg')]
 
-queue = BuildQueue(arch_repo, aur_source, builders)
+queue = BuildQueue('pacman_queue', pearl_bin, pearl_src, builders)
+
+# After success, binary_file should be populated in chroot jobs' artifacts
+queue.add_success_hook(lambda job: pearl_repo.add(job.artifacts['binary_file']))
+
+# Whenever a package is removed from the source
+# repository, remove it from the binary repository
+pearl_src.add_remove_listener(lambda p: pearl_repo.remove(p.name))
 
 # Figure out what should be in the queue
 queue.update_queue()
-queue.run_jobs() # Assign free things in the build queue to jobs
-
-"""
-from reactor.pacman.srcdir_server import SrcDirServer
-from reactor.pacman.repo_server import RepoServer
-from reactor.terminal.terminal import Terminal
-
-CONFIG = {
-    'src_server' : {
-        'query_reply_bind':'inproc://src_query',
-        'update_pub_bind':'inproc://src_update',
-        'directory': '/home/daniel/software/arch-ros-stacks/jade',
-        'check_interval': 100000
-    },
-    'repo_server' : {
-        'query_reply_bind':'inproc://repo_query',
-        'update_pub_bind':'inproc://repo_update',
-
-        'pacman_config': '/home/reactor/pacman-conf/pacman.conf',
-        'check_interval': 100000
-    },
-    'terminal' : {
-        'sockets': {
-            'connect:REQ:query':'inproc://repo_query'
-        }
-    }
-}
-
-context = zmq.Context()
-
-#src_server = SrcDirServer()
-#src_server_thread = threading.Thread(target=src_server.run,args=(context, CONFIG['src_server']))
-#src_server_thread.start()
-
-repo_server = RepoServer()
-repo_server_thread = threading.Thread(target=repo_server.run,args=(context, CONFIG['repo_server']))
-repo_server_thread.start()
-
-terminal = Terminal()
-terminal.run(context, CONFIG['terminal'])
-"""
+queue.run_jobs() # Assign free things in the build queue to free workers that can take them

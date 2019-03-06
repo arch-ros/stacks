@@ -44,7 +44,8 @@ class PkgBuild:
         if len(props['pkgname']) <= 0:
             return None
 
-        return Package(name=props['pkgname'],
+        return Package('pacman',
+                       name=props['pkgname'],
                        description=props['pkgdesc'],
                        version=Version.parse(props['pkgver'], 
                                              props['pkgrel'],  

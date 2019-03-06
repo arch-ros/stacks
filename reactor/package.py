@@ -2,6 +2,8 @@ import re
 import numbers
 from enum import Enum
 
+import copy
+
 class Dependency:
     def __init__(self, name):
         self.name = name
@@ -33,10 +35,11 @@ class Version:
         return Version(version, release, epoch_num)
 
 class Package:
-    def __init__(self, name, description=None, version=None, arch=[], groups=[], 
+    def __init__(self, type, name, description=None, version=None, arch=[], groups=[], 
                     provides=[], conflicts=[], replaces=[],
                     depends=[], make_depends=[], check_depends=[], opt_depends=[],
                     artifacts={}):
+        self.type = type
         self.name = name
         self.description = description
         self.version = version
@@ -55,9 +58,26 @@ class Package:
 
         self.artifacts = artifacts
 
+    @property
+    def hash_str(self):
+        return self.type + ' ' + self.name + ' ' + ('/'.join(self.arch) if self.arch else '')
+
     def matches(self, other):
         return self.hash_str == other.hash_str
 
+    # Replaces this package info with the others
+    def replace(self, other):
+        self.name = other.name
+        self.description = other.description
+        self.version = other.version
+        self.arch = other.arch
+        self.groups = other.groups
+        self.provides = other.provides
+        self.conflicts = other.conflicts
+        self.replaces = other.replaces
+        self.artifacts = other.artifacts
+
+    # Fills in additional info from other package
     def merge(self, other):
         self.name = self.name if self.name else other.name
         self.description = self.description if self.description and len(self.description) > 0 else other.description
@@ -72,83 +92,13 @@ class Package:
 
         self.artifacts = {**self.artifacts, **other.artifacts}
 
-    @property
-    def hash_str(self):
-        return self.name + ' ' + ('/'.join(self.arch) if self.arch else '')
+
+    def clone(self):
+        return copy.deepcopy(self)
+
+    def __eq__(self, other):
+        return self.name == other.name and self.version == other.version
 
     def __str__(self):
         return self.name + ' ' + (str(self.version) if self.version else None) + ' ' + ('/'.join(self.arch) if self.arch else '')
 
-class DiffType(Enum):
-    ADDED = 'added'
-    MODIFIED = 'modified'
-    REMOVED = 'removed'
-
-class Diff:
-    def __init__(type_, old_hash, new_hash):
-        self.type = type_
-        self.old_hash = old_hash
-        self.new_hash = new_hash
-
-class Database:
-    def __init__(self, packages=[]):
-        if len(packages) > 0:
-            self._packages = { x.hash_str : x for x in packages }
-        else:
-            self._packages = {}
-
-    def __iter__(self):
-        for package in self._packages.values():
-            yield package
-
-    def __contains__(self, package):
-        if not package.hash_str in self._packages:
-            return False
-        return self._packages[package.hash_str].matches(package)
-
-    def __len__(self):
-        return len(self._packages)
-
-    def add(self, pkg):
-        self._packages[pkg.hash_str] = pkg
-
-    def remove(self, pkg):
-        del self._packages[pkg.hash_str]
-
-    # Calculate the diffs to get from this db to odb
-    def diffs(self, odb):
-        diffs = []
-        for pkg in self:
-            if pkg not in odb:
-                diffs.append((DiffType.REMOVED, pkg))
-        for pkg in odb:
-            if pkg not in self:
-                diffs.append((DiffType.ADDED, pkg))
-        return diffs
-
-    # Replaces this db with the other db
-    # and returns the diffs needed to get there
-    def replace(self, odb):
-        diffs = []
-        for pkg in odb:
-            if pkg not in self:
-                diffs.append((DiffType.ADDED, pkg))
-                self.add(pkg)
-            else:
-                if self._packages[pkg.hash_str].merge(pkg):
-                    diffs.append((DiffType.MODIFIED, self._packages[pkg.hash_str]))
-        for pkg in self:
-            if pkg not in odb:
-                diffs.append((DiffType.REMOVED, pkg))
-                self.remove(pkg)
-        return diffs
-
-    # Called to update the database,
-    # returns a list of diffs that were made
-    # different types of databases extend this
-    def update(self):
-        return []
-
-
-    def __str__(self):
-        return '\n'.join([str(x) for x in self._packages.values()])

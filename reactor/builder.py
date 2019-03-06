@@ -3,90 +3,127 @@ import threading
 import logbook
 import sys
 
-logger = logbook.Logger(__name__)
-
 class BuildQueue:
-    def __init__(self, compiled_db, source_db, builder_pool,
-                        package_filter=lambda x: True):
+    def __init__(self, name, compiled_db, source_db, builder_pool):
+        self.name = name
+        self.logger = logbook.Logger(name)
+
         self.compiled_db = compiled_db
         self.source_db = source_db
-        self.package_filter = package_filter
 
-        self.builder_pool = list(builder_pool)
+        self.cron_jobs = []
+
+        self.builders = list(builder_pool)
+        self.free_builders = list(builder_pool)
 
         self.build_queue = []
-        self.current_jobs = []
+        self.running_jobs = []
+
+        self._success_hooks = []
+        self._failure_hooks = []
 
         self._lock = threading.Lock()
+
+    def add_success_hook(self, hook):
+        with self._lock:
+            self._success_hooks.append(hook)
+
+    def add_failure_hook(self, hook):
+        with self._lock:
+            self._failure_hooks.append(hook)
 
     def update_queue(self):
         with self._lock:
             for pkg in self.source_db:
-                if self.package_filter(pkg):
-                    if not pkg in self.compiled_db and \
-                       not pkg in self.build_queue:
-                        logger.info('queuing build of {}'.format(pkg))
-                        self.build_queue.append(pkg)
+                if pkg in self.compiled_db:
+                    continue
+                if pkg in self.build_queue:
+                    continue
+                
+                matching_builders = list(filter(lambda b: b.wants(pkg), self.builders))
+                if len(matching_builders) > 0:
+                    job = matching_builders[0].create_job(str(pkg), pkg)
+                    self.logger.info('queuing build of {}'.format(pkg))
+                    self.build_queue.append(job)
+                else:
+                    self.logger.warn('could not find builders for {}'.format(pkg))
 
     def run_jobs(self):
         # Assign all builders in the pool to jobs
         with self._lock:
-            while len(self.builder_pool) > 0 and len(self.build_queue) > 0:
-                builder = self.builder_pool.pop(0)
-                pkg = self.build_queue.pop(0)
-                name = pkg.hash_str
+            while len(self.build_queue) > 0:
+                job = self.build_queue[0]
+                available_builders = list(filter(lambda b: job.wants(b), self.free_builders))
+                if len(available_builders) > 0:
+                    builder = available_builders[0]
+                    # Remove builder, job from queue
+                    self.free_builders.remove(builder)
+                    self.build_queue.pop(0)
 
-                job = builder.create_job(str(pkg), self, pkg)
-                self.current_jobs.append(job)
-                job.start()
+                    self.running_jobs.append(job)
+                    job.start(self, builder)
 
-    def job_failed(self, job):
+    def job_failed(self, job, builder):
         with self._lock:
-            logger.info('job failed {}'.format(job.name))
-            logger.info('freeing builder for job {}'.format(job.name))
+            self.logger.info('job failed {}'.format(job.name))
+            self.logger.info('freeing builder for job {}'.format(job.name))
             
             # Put builder back in the pool
-            self.builder_pool.append(job.builder)
+            self.free_builders.append(builder)
 
-    def job_finished(self, job):
+            for h in self._failure_hooks:
+                h(job)
+
+    def job_finished(self, job, builder):
         with self._lock:
-            logger.info('freeing builder for job {}'.format(job.name))
+            self.logger.info('freeing builder for job {}'.format(job.name))
 
             # Put builder back in the pool
-            self.builder_pool.append(job.builder)
+            self.free_builders.append(builder)
+            for h in self._success_hooks:
+                h(job)
 
 class Job:
-    def __init__(self, name, queue, builder, package):
+    def __init__(self, name, type_):
         self.name = name
-        self.queue = queue
-        self.builder = builder
-        self.package = package
+        self.type = type_
+        self.status = 'not started'
+        self.info = {}
+        self.artifacts = {}
+        self.logger = logbook.Logger(name)
 
+    def wants(self, builder):
+        return True
+
+    def start(self, queue, builder):
         def finish():
             try:
-                result = self.run()
+                result = self.run(builder)
             except:
-                queue.job_failed(self)
+                queue.job_failed(self, builder)
                 logger.exception('Unexcepted exception while running job {}'.format(self.name))
                 return
 
             if result:
-                queue.job_finished(self)
+                queue.job_finished(self, builder)
             else:
-                queue.job_failed(self)
+                queue.job_failed(self, builder)
 
-        self._thread = threading.Thread(target=finish)
+        thread = threading.Thread(target=finish)
+        thread.start()
 
-    def start(self):
-        self._thread.start()
-
-    def run(self):
+    def run(self, builder):
         # Should never be called!
         raise NotImplementedError()
 
 class Builder:
-    def __init__(self, name):
+    def __init__(self, name, types_):
         self.name = name
+        self.types = types_
+        self.logger = logbook.Logger(name)
 
-    def create_job(self, job_name, queue, package):
-        return None
+    def wants(self, package):
+        return True
+
+    def create_job(self, job_name, package):
+        raise NotImplementedError()
