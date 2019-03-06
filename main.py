@@ -8,7 +8,17 @@ import sys
 StreamHandler(sys.stdout).push_application()
 
 from reactor.pacman.repository import *
+from reactor.builder import *
+from reactor.chroot import *
 
+
+
+# For built repository
+
+arch_repo = BinaryDatabase('archlinux-bin', '/home/reactor/pacman-repo/pacman.conf')
+
+
+# For archlinux source repository
 
 def update_fs(db, directory):
     return False
@@ -22,13 +32,34 @@ def find_package_dirs(db, directory):
             dirs.append(src_x86_path)
     return dirs
 
-#repo = BinaryDatabase('archlinux-bin', '/home/reactor/pacman-repo/pacman.conf')
-source = SourceDatabase('archlinux-src', '/home/reactor/packages/archlinux', update_fs, find_package_dirs)
+arch_source = SourceDatabase('archlinux-src', '/home/reactor/packages/archlinux', update_fs, find_package_dirs)
 
-print(repo)
-print(source)
+# For aur source repository
 
+def update_fs(db, directory):
+    return False
 
+def find_package_dirs(db, directory):
+    dirs = []
+    for f in os.listdir(directory):
+        path = os.path.join(directory, f)
+        pkgbuild = os.path.join(path, 'PKGBUILD')
+        if os.path.isdir(path) and os.path.exists(pkgbuild):
+            dirs.append(path)
+    return dirs
+
+aur_source = SourceDatabase('aur-src', '/home/reactor/packages/aur', update_fs, find_package_dirs)
+
+# Create a build queue
+builders = [ChrootBuilder('worker1', '/home/reactor/chroots/worker1',
+                                     '/home/reactor/chroots/mkarchroot',
+                                     '/home/reactor/chroots/makechrootpkg')]
+
+queue = BuildQueue(arch_repo, aur_source, builders)
+
+# Figure out what should be in the queue
+queue.update_queue()
+queue.run_jobs() # Assign free things in the build queue to jobs
 
 """
 from reactor.pacman.srcdir_server import SrcDirServer
