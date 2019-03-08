@@ -128,13 +128,13 @@ class Database:
 
     # Called to update the database
     # overridden by subtypes
-    def update(self, force=False):
+    def update(self):
         pass
 
     def __str__(self):
         return '\n'.join([str(x) for x in self._packages.values()])
 
-class MergedDatabase(Database):
+class DerivedDatabase(Database):
     def __init__(self, name, databases, filter=None):
         super().__init__(name)
         self._databases = databases
@@ -152,9 +152,9 @@ class MergedDatabase(Database):
                             filter=self._filter)
             d.add_listener(process)
 
-    def update(self, force=False):
+    def update(self):
         for d in self._databases:
-            d.update(force)
+            d.update()
 
         # Process all the diffs
         with self._diffs_lock:

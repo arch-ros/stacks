@@ -38,7 +38,7 @@ class Package:
     def __init__(self, type, name, description=None, version=None, arch=[], groups=[], 
                     provides=[], conflicts=[], replaces=[],
                     depends=[], make_depends=[], check_depends=[], opt_depends=[],
-                    artifacts={}):
+                    artifacts={}, parent=None):
         self.type = type
         self.name = name
         self.description = description
@@ -57,6 +57,7 @@ class Package:
         self.opt_depends = opt_depends
 
         self.artifacts = artifacts
+        self.parent = parent
 
     @property
     def hash_str(self):
@@ -76,6 +77,7 @@ class Package:
         self.conflicts = other.conflicts
         self.replaces = other.replaces
         self.artifacts = other.artifacts
+        self.parent = other.parent
 
     # Fills in additional info from other package
     def merge(self, other):
@@ -91,6 +93,7 @@ class Package:
         self.replaces.extend(other.replaces)
 
         self.artifacts = {**self.artifacts, **other.artifacts}
+        self.parent = self.parent if self.parent else other.parent
 
 
     def clone(self):
@@ -101,4 +104,7 @@ class Package:
 
     def __str__(self):
         return self.name + ' ' + (str(self.version) if self.version else None) + ' ' + ('/'.join(self.arch) if self.arch else '')
+
+    def __hash__(self):
+        return hash(self.type + ' ' + self.name + ' ' + '/'.join(self.arch) if self.arch else '')
 

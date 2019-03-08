@@ -1,0 +1,104 @@
+{% macro divider() %}
+    <hr class="sidebar-divider">
+{% endmacro %}
+
+{% macro heading(name='') %}
+    <div class="sidebar-heading">
+        {{ name }}
+    </div>
+{% endmacro %}
+
+{% macro item(name, icon, link) %}
+    {% if name in page_path %}
+    <li class="nav-item active">
+    {% else %}
+    <li class="nav-item">
+    {% endif %}
+        <a class="nav-link" href="{{ link }}">
+            <i class="fas fa-fw fa-{{ icon }}"></i>
+            <span>{{ name }}</span>
+        </a>
+    </li>
+{% endmacro %}
+
+{% macro start_accordion(name, icon) %}
+    <li class="nav-item">
+        {% if name in page_path %}
+        <a class="nav-link" href="#" data-toggle="collapse" 
+            data-target="#collapse{{name.replace(' ', '')}}"
+            aria-expanded="true" aria-controls="collapse{{name.replace(' ', '')}}">
+            <i class="fas fa-fw fa-{{ icon }}"></i>
+            <span>{{ name }}</span>
+        </a>
+        <div id="collapse{{name.replace(' ','')}}" class="collapse show"
+            aria-labelledby="heading{{name.replace(' ','')}}" data-parent="#sidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+
+        {% else %}
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" 
+            data-target="#collapse{{name.replace(' ', '')}}"
+            aria-expanded="true" aria-controls="collapse{{name.replace(' ', '')}}">
+            <i class="fas fa-fw fa-{{ icon }}"></i>
+            <span>{{ name }}</span>
+        </a>
+        <div id="collapse{{name.replace(' ','')}}" class="collapse"
+            aria-labelledby="heading{{name.replace(' ','')}}" data-parent="#sidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+
+        {% endif %}
+{% endmacro %}
+
+
+{% macro end_accordion() %}
+            </div>
+        </div>
+    </li>
+{% endmacro %}
+
+{% macro accordion_header(name) %}
+    <a class="collapse-header">{{ name }}</a>
+{% endmacro %}
+
+{% macro accordion_link(name, link) %}
+    {% if name in page_path %}
+        <a class="collapse-item active" href="{{link}}">{{ name }}</a>
+    {% else %}
+        <a class="collapse-item" href="{{link}}">{{ name }}</a>
+    {% endif %}
+{% endmacro %}
+
+{% macro brand(name='Oyster', icon='tools') %}
+    <a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
+        <div class="sidebar-brand-icon">
+            <i class="fas fa-{{ icon }}"></i>
+        </div>
+        <div class="sidebar-brand-text mx-3">{{ name }}</div>
+    </a>
+    <hr class="sidebar-divider my-0">
+{% endmacro %}
+
+<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="sidebar">
+    {{ brand() }}
+    {{ item('Dashboard', 'tachometer-alt', '/') }}
+    {{ divider() }}
+
+    {{ start_accordion('Build Reports', 'bullhorn') }}
+        {{ accordion_header('Reports') }}
+        {{ accordion_link('Queued', '/status/queue') }}
+        {{ accordion_link('Completed', '/status/completed') }}
+        {{ accordion_link('Failed', '/status/failed') }}
+    {{ end_accordion() }}
+
+    {{ start_accordion('Packages', 'archive') }}
+        {{ accordion_header('Databases') }}
+        {% for db in databases %}
+            {{ accordion_link(db.name, '/database/' + db.name) }}
+        {% endfor %}
+    {{ end_accordion() }}
+
+    {{ start_accordion('Workers', 'cog') }}
+        {% for worker in workers %}
+            {{ accordion_link(worker.name, '/worker/' + worker.name) }}
+        {% endfor %}
+    {{ end_accordion() }}
+</ul>

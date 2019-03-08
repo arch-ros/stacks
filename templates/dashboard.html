@@ -1,0 +1,15 @@
+{% set title='Dashboard' %}
+{% set page_path='/Dashboard' %}
+{% extends 'base.html' %}
+
+{% import 'ui.html' as ui %}
+{% import 'vis.html' as vis %}
+
+{% block content %}
+    {# On the first row have the last four events #}
+    {% call ui.row() %}
+        {% for event in event_log.history[:-5:-1] %}
+            {{ vis.event_card(event) }}
+        {% endfor %}
+    {% endcall %}
+{% endblock %}

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+    {% include 'header.html' %}
+    <body id="page-top">
+        <div id="wrapper">
+            <!-- Sidebar -->
+            {% include 'sidebar.html' %}
+            <!-- End of Sidebar -->
+            <div id="content-wrapper" class="d-flex flex-column">
+                <div id="content">
+                    <!-- Top Navbar -->
+                    {% include 'toolbar.html' %}
+                    <!-- End of Navbar -->
+
+                    <!-- Begin page content -->
+                    <div class="container-fluid">
+                        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+                            <h1 class="h3 mb-0 text-gray-800">{{ title }}</h1>
+                            {% if download_action %}
+                            <a href="#" class="d-none d-sm-inline-block 
+                                                btn btn-sm btn-primary shadow-sm">
+                                <i class="fas fa-download fa-sm text-white-50"></i> Download
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% block content %}{% endblock %}
+                    </div>
+                    <!-- End page content -->
+                </div>
+            </div>
+        </div>
+        {% include 'footer.html' %}
+    </body>
+</html>

@@ -1,72 +1,109 @@
 import os
-import zmq
 import threading
+import asyncio
+import time
+
+from aiohttp import web
 
 from logbook import Logger, StreamHandler
 import sys
 
 StreamHandler(sys.stdout).push_application()
 
-from reactor.pacman.repository import *
-from reactor.pacman.database import *
-from reactor.database import *
-from reactor.pacman.chroot import *
-from reactor.builder import *
+from oyster.pacman.repository import *
+from oyster.pacman.database import *
+from oyster.pacman.chroot import *
+from oyster.events import *
+from oyster.database import *
+from oyster.job import *
 
-# For built repository
-pearl_bin = BinaryDatabase('pearl-bin', '/home/reactor/pacman-repo/pacman.conf')
-pearl_repo = Repository('pearl-repo', '/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
+async def main():
+    logger = Logger('main')
 
+    # repository to push to
+    pearl_repo = Repository('pearl-repo', '/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
 
-# For archlinux source repository
-def update_fs(db, directory):
-    return False
+    # built repository
+    pearl_bin = BinaryDatabase('pearl', '/home/reactor/pacman-repo/pacman.conf')
 
-def find_package_dirs(db, directory):
-    dirs = []
-    for f in os.listdir(directory):
-        src_x86_path = os.path.join(directory, f, 'repos', 'core-x86_64')
-        pkgbuild_x86_path = os.path.join(src_x86_path, 'PKGBUILD')
-        if os.path.isdir(src_x86_path) and os.path.exists(pkgbuild_x86_path):
-            dirs.append(src_x86_path)
-    return dirs
+    # For archlinux source repository
+    def update_fs(db, directory):
+        return False
 
-arch_source = SourceDatabase('archlinux-src', '/home/reactor/packages/archlinux', update_fs, find_package_dirs)
+    def find_package_dirs(db, directory):
+        dirs = []
+        for f in os.listdir(directory):
+            src_x86_path = os.path.join(directory, f, 'repos', 'core-x86_64')
+            pkgbuild_x86_path = os.path.join(src_x86_path, 'PKGBUILD')
+            if os.path.isdir(src_x86_path) and os.path.exists(pkgbuild_x86_path):
+                dirs.append(src_x86_path)
+        return dirs
 
-# For aur source repository
-def update_fs(db, directory):
-    return False
+    arch_source = SourceDatabase('archlinux-source', '/home/reactor/packages/archlinux', find_package_dirs)
 
-def find_package_dirs(db, directory):
-    dirs = []
-    for f in os.listdir(directory):
-        path = os.path.join(directory, f)
-        pkgbuild = os.path.join(path, 'PKGBUILD')
-        if os.path.isdir(path) and os.path.exists(pkgbuild):
-            dirs.append(path)
-    return dirs
+    # For aur source repository
+    def update_fs(db, directory):
+        return False
 
-aur_source = SourceDatabase('aur-src', '/home/reactor/packages/aur', update_fs, find_package_dirs)
+    def find_package_dirs(db, directory):
+        dirs = []
+        for f in os.listdir(directory):
+            path = os.path.join(directory, f)
+            pkgbuild = os.path.join(path, 'PKGBUILD')
+            if os.path.isdir(path) and os.path.exists(pkgbuild):
+                dirs.append(path)
+        return dirs
 
-# Combined source repository
-pearl_src = MergedDatabase('pearl-src', [arch_source, aur_source])
+    aur_source = SourceDatabase('aur-source', '/home/reactor/packages/aur', find_package_dirs)
 
+    # Combined source repository
+    pearl_src = DerivedDatabase('sources', [arch_source, aur_source])
 
+    # when things are removed from the 
+    # source repository, remove them from the pearl repository
+    # TODO: This doesn't work if the version just changes
+    # pearl_src.add_remove_listener(lambda p: pearl_repo.remove(p.name))
 
-# Create a build queue
-builders = [ChrootBuilder('worker1', '/home/reactor/chroots/worker1',
-                                     '/home/reactor/chroots/mkarchroot',
-                                     '/home/reactor/chroots/makechrootpkg')]
+    # Create a build queue
+    workers = [ChrootWorker('worker1', '/home/reactor/chroots/worker1',
+                                         '/home/reactor/chroots/pacman.conf',
+                                         '/repo/pearl/packages',
+                                         '/home/reactor/chroots/mkarchroot',
+                                         '/home/reactor/chroots/makechrootpkg')]
 
-queue = BuildQueue('pacman_queue', pearl_bin, pearl_src, builders)
+    def push_results(job, build):
+        if build.status != BuildStatus.SUCCESS:
+            return
 
-# After success, binary_file should be populated in chroot jobs' artifacts
-queue.add_success_hook(lambda job: pearl_repo.add(job.artifacts['binary_file']))
+        for f in build.artifacts['binary_files']:
+            pearl_repo.add(f)
 
-# Whenever a package is removed from the source
-# repository, remove it from the binary repository
-pearl_src.add_remove_listener(lambda p: pearl_repo.remove(p.name))
+    # push the results
+    # after the worker is done
+    for w in workers:
+        w.add_listener(push_results)
 
-# Figure out what should be in the queue
-queue.update_queue()
-queue.run_jobs() # Assign free things in the build queue to free workers that can take them
+    event_log = EventLog()
+
+    scheduler = Scheduler(pearl_bin, pearl_src)
+
+    await asyncio.gather(run_website(scheduler, event_log, workers, [ pearl_bin ]),
+                         run_scheduler(scheduler, event_log, workers))
+    #await run_website(scheduler, event_log, workers, [ pearl_bin ])
+
+async def run_scheduler(scheduler, build_log, workers):
+    await scheduler.run(build_log, workers)
+
+async def run_website(scheduler, build_log, workers, databases):
+    import oyster.web
+
+    app = oyster.web.make_app(scheduler, build_log, workers, databases)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
+
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main())
+loop.run_forever()

@@ -18,7 +18,7 @@ class BinaryDatabase(Database):
 
         self.update()
 
-    def update(self, force=False):
+    def update(self):
         new_db = Database()
         self._logger.debug('updating pacman databases for {}'.format(self.name))
         for db in self._pacman_handle.get_syncdbs():
@@ -45,20 +45,15 @@ class BinaryDatabase(Database):
         self.replace(new_db)
 
 class SourceDatabase(Database):
-    def __init__(self, name, directory, update_fs, find_dirs):
+    def __init__(self, name, directory, find_dirs):
         super().__init__(name)
         self._logger = logbook.Logger(name)
         self._directory = directory
-        self._update_fs = update_fs
         self._find_dirs = find_dirs
 
         self.update()
 
-    def update(self, force=False):
-        self._logger.debug('pulling source updates for {}'.format(self.name))
-        if not force and not self._update_fs(self, self._directory) and len(self) > 0:
-            return [] # No changes
-
+    def update(self):
         new_db = Database()
         pkg_dirs = self._find_dirs(self, self._directory)
 
