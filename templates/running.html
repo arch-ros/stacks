@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% set page_path='Build Reports/Running' %}
+
+{% set title='Running Builds' %}
+{% block header %}
+    Running Builds
+{% endblock %}
+
+{% import 'ui.html' as ui %}
+{% import 'vis.html' as vis %}
+
+{% block content %}
+    {% call ui.table_card('Running') %}
+    <thead>
+        <tr>
+            <th>Build Number</th>
+            <th>Package</th>
+            <th>Time Started</th>
+            <th>Time Elapsed</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for event in event_log.history[::-1] %}
+            {% if event.type.value == 'build' and event.status.value == 'running' %}
+                <tr>
+                    <td><a href="/build/{{event.id}}">Build #{{event.id}}</a></td>
+                    <td>{{event.name}}</td>
+                    <td>{{event.started}}</td>
+                    <td>{{time - event.started}}</td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+    </tbody>
+    {% endcall %}
+{% endblock content %}

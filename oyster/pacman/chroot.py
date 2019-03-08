@@ -31,6 +31,8 @@ class ChrootWorker(Worker):
 
     # Run an actual job
     async def _exec(self, job, build):
+        logger = build.logger
+
         build.started_now()
         build.set_running()
 
@@ -42,7 +44,7 @@ class ChrootWorker(Worker):
 
         # check if already built
         if os.path.exists(result_path):
-            self.logger.debug('package file found {}'.format(result_file))
+            logger.debug('package file found {}'.format(result_file))
 
             build.add_artifact('binary_files', [result_path])
             build.ended_now()
@@ -50,23 +52,23 @@ class ChrootWorker(Worker):
             return
             
         # not already built, do build
-        self.logger.info('starting build {}'.format(self.name))
+        logger.info('starting build {}'.format(self.name))
         args = [self._mkpkgcmd, '-d', self._bind_dir, '-r', self._chroot, '.']
-        self.logger.trace('running {}'.format(' '.join(args)))
-        if not (await util.run_proc_async(args, self.logger, src_dir)):
+        logger.trace('running {}'.format(' '.join(args)))
+        if not (await util.run_proc_async(args, logger, src_dir)):
             build.add_artifact('binary_files', [])
             build.ended_now()
             build.set_failure()
             return
 
         if os.path.exists(result_path):
-            self.logger.debug('package file found {}'.format(result_file))
+            logger.debug('package file found {}'.format(result_file))
             build.add_artifact('binary_files', [result_path])
             build.ended_now()
             build.set_failure()
             return
         else:
-            self.logger.error('could not find result file {}'.format(result_file))
+            logger.error('could not find result file {}'.format(result_file))
             build.add_artifact('binary_files', [])
             build.ended_now()
             build.set_failure()
@@ -78,7 +80,7 @@ class ChrootWorker(Worker):
             # Will do other queue actions
             # while we wait
             job = await queue.get()
-            build = event_log.create_build(job.tag)
+            build = event_log.create_build(job.tag, str(job.package), self.name)
             await self._exec(job, build)
             # notify listeners
             for l in self.listeners:

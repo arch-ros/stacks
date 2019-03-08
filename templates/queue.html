@@ -1,3 +1,30 @@
 {% set title='Queue Status' %}
 {% set page_path='Build Reports/Queued' %}
 {% extends 'base.html' %}
+
+{% import 'ui.html' as ui %}
+{% import 'vis.html' as vis %}
+
+{% block content %}
+    {% call ui.table_card('Queue') %}
+    <thead>
+        <tr>
+            <th>Package Name</th>
+            <th>Package Version</th>
+            <th>Package Arch</th>
+            <th>Time Entered</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for job in scheduler.queue.waiting %}
+        <tr>
+            <td><a href="/package/{{job.package.name}}">{{job.package.name}}</a></td>
+            <td>{{job.package.version}}</td>
+            <td>{{job.package.arch|join(', ')}}</td>
+            <td>{{job.time}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    {% endcall %}
+{% endblock content %}
+

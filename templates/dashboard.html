@@ -1,6 +1,11 @@
-{% set title='Dashboard' %}
-{% set page_path='/Dashboard' %}
 {% extends 'base.html' %}
+
+{% set page_path='/Dashboard' %}
+
+{% set title='Dashboard' %}
+{% block header %}
+    Dashboard
+{% endblock %}
 
 {% import 'ui.html' as ui %}
 {% import 'vis.html' as vis %}
@@ -13,3 +18,4 @@
         {% endfor %}
     {% endcall %}
 {% endblock %}
+

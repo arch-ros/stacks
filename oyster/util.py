@@ -25,7 +25,11 @@ async def run_proc_async(args, logger, cwd=None):
         line = await out.readline()
         if line == b'':
             break
-        logger.trace(line.decode('utf-8').rstrip())
+        try:
+            line = line.decode('utf-8').rstrip()
+            logger.trace(line)
+        except UnicodeDecodeError:
+            continue
     exitcode = await proc.wait()
     if exitcode != 0:
         return False

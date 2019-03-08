@@ -4,17 +4,20 @@
     {% if event.type.value == 'build' %}
         {% if event.status.value == 'success' %}
             {{ ui.text_card('success', 'Build #{}'.format(event.id), 
-                            'check', 'Success: ' + event.tag) }}
+                            'check', 'Success: ' + event.tag,
+                            '/build/{}'.format(event.id)) }}
         {% elif event.status.value == 'failure' %}
             {{ ui.text_card('danger', 'Build #{}'.format(event.id), 
-                            'exclamation-triangle', 'Failure: ' + event.tag) }}
+                            'exclamation-triangle', 'Failure: ' + event.tag,
+                            '/build/{}'.format(event.id)) }}
         {% else %}
             {{ ui.text_card('warning', 'Build #{}'.format(event.id), 
-                            'clipboard-list', 'Building: ' + event.tag) }}
+                            'clipboard-list', 'Building: ' + event.tag,
+                            '/build/{}'.format(event.id)) }}
         {% endif %}
     {% else %}
-        {{ ui.text_card('danger', 'Unkown event type',
-                        'clipboard-list', '') }}
+        {{ ui.text_card('danger', 'Event Type: ' + event.type.value,
+                        'clipboard-list', 'Unknown Event Type') }}
     {% endif %}
 
 {% endmacro %}

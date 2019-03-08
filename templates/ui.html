@@ -5,9 +5,14 @@
 {% endmacro %}
 
 {# color can be primary, info, warning, success #}
-{% macro card(color, name, icon) %}
+{% macro status_card(color, name, icon, href='') %}
     <div class="col-xl-3 col-md-6 mb-4">
+        {% if href != '' %}
+        <div class="card border-left-{{color}} shadow h-100 py-2" style="cursor: pointer" 
+                    onclick="window.location.href='{{ href }}'">
+        {% else %}
         <div class="card border-left-{{color}} shadow h-100 py-2">
+        {% endif %}
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
@@ -24,14 +29,14 @@
     </div>
 {% endmacro %}
 
-{% macro text_card(color, name, icon, text) %}
-    {% call card(color, name, icon) %}
+{% macro text_card(color, name, icon, text, href='') %}
+    {% call status_card(color, name, icon, href) %}
         <div class="h5 mb-0 font-weight-bold text-gray-800">{{ text }}</div>
     {% endcall %}
 {% endmacro %}
 
-{% macro progress_card(color, name, icon, progress) %}
-    {% call card(color, name, icon) %}
+{% macro progress_card(color, name, icon, progress, href='') %}
+    {% call status_card(color, name, icon, href) %}
         <div class="row no-gutters align-items-center">
             <div class="col-auto">
                 <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">{{ progress }}%</div>
@@ -46,4 +51,32 @@
             </div>
         </div>
     {% endcall %}
+{% endmacro %}
+{% macro table_card(name) %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">{{name}}</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="dataTable{{name.replace(' ','')}}" width="100%" cellspacing="0">
+                {{ caller() }}
+            </table>
+            <script>
+                $(document).ready(function() { $('#dataTable{{name.replace(' ','')}}').DataTable(); });
+            </script>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro block_card(name) %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">{{name}}</h6>
+    </div>
+    <div class="card-body" style="height:700px;overflow:scroll;background:#222;color:#eee">
+        {{ caller() }}
+    </div>
+</div>
 {% endmacro %}

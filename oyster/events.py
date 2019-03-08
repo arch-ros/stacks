@@ -10,16 +10,30 @@ class EventType(Enum):
     BUILD = 'build'
 
 class Event:
-    def __init__(self, type):
+    def __init__(self, type, tag):
         self.type = type
+        self.tag = tag
 
 class EventLog:
     def __init__(self):
         self.history = []
         self.current_id = 0
 
-    def create_build(self, tag):
-        build = Build(self.current_id + 1, tag)
+    def get_build_by_id(self, id):
+        for event in self.history:
+            if event.type == EventType.BUILD and event.id == id:
+                return event
+        return None
+
+    def get_events_by_tag(self, tag):
+        events = []
+        for event in self.history:
+            if event.tag == tag:
+                events.append(event)
+        return events
+
+    def create_build(self, tag, name, worker_name):
+        build = Build(self.current_id + 1, tag, name, worker_name)
         self.current_id = self.current_id + 1
 
         self.history.append(build)
@@ -32,15 +46,30 @@ class BuildStatus(Enum):
     FAILURE = 'failure'
 
 class Build(Event):
-    def __init__(self, id, tag):
-        super().__init__(EventType.BUILD)
+    def __init__(self, id, tag, name, worker):
+        super().__init__(EventType.BUILD, tag)
         self.id = id
-        self.tag = tag
+        self.name = name
+        self.worker = worker
+        self.log = ''
         self.artifacts = {} # Outputs
-        self.logger = logbook.Logger(tag)
         self.status = BuildStatus.WAITING
         self.started = None
         self.ended = None
+
+    @property
+    def logger(self):
+        b = self
+        fmt = '[{record.time:%Y-%m-%d %H:%M:%S.%f%z}] {record.extra[worker]}: {record.message}\n'
+        formatter = logbook.handlers.StringFormatter(fmt)
+              
+        class CustomLogger(logbook.Logger):
+            def process_record(self, record):
+                logbook.Logger.process_record(self, record)
+                record.extra['worker'] = b.worker
+                b.log += formatter(record, None)
+
+        return CustomLogger(self.name)
 
     def started_now(self):
         self.started = datetime.datetime.now()

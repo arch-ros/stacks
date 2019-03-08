@@ -1,12 +1,14 @@
 import aiohttp_jinja2
 from aiohttp import web
 import jinja2
+import datetime
 
 def make_routes(scheduler, event_log, workers, databases):
     routes = web.RouteTableDef()
 
     def basic_info():
-        return {'workers': workers, 'databases': databases,
+        return {'time': datetime.datetime.now(),
+                'workers': workers, 'databases': databases,
                 'scheduler': scheduler, 'event_log': event_log}
 
     @routes.get('/')
@@ -21,6 +23,11 @@ def make_routes(scheduler, event_log, workers, databases):
     async def queue(request):
         return { **basic_info() }
 
+    @routes.get('/status/running')
+    @aiohttp_jinja2.template('running.html')
+    async def running(request):
+        return { **basic_info() }
+
     @routes.get('/status/completed')
     @aiohttp_jinja2.template('completed.html')
     async def completed(request):
@@ -32,13 +39,54 @@ def make_routes(scheduler, event_log, workers, databases):
         return { **basic_info() }
 
     # Builds pages:
+    @routes.get('/build/{id}')
+    @aiohttp_jinja2.template('build.html')
+    async def build(request):
+        try:
+            id = int(request.match_info['id'])
+            build = event_log.get_build_by_id(id)
+            if not build:
+                raise web.HTTPNotFound()
+            return { **basic_info(), 'build' : build }
+        except ValueError:
+            raise web.HTTPNotFound()
 
     # Package pages (by tag):
+    @routes.get('/package/{tag}')
+    @aiohttp_jinja2.template('package.html')
+    async def package(request):
+        tag = request.match_info['tag']
+        return { **basic_info(), 'tag' : tag}
 
     # Database pages:
+    @routes.get('/database/{name}')
+    @aiohttp_jinja2.template('database.html')
+    async def database(request):
+        name = request.match_info['name']
+        database = None
+        for db in databases:
+            if db.name == name:
+                database = db
+                break
+        if database is None:
+            raise web.HTTPNotFound()
+
+        return { **basic_info(), 'database' : database}
 
 
     # Worker pages:
+    @routes.get('/worker/{name}')
+    @aiohttp_jinja2.template('worker.html')
+    async def database(request):
+        name = request.match_info['name']
+        worker = None
+        for w in workers:
+            if w.name == name:
+                worker = w
+                break
+        if worker is None:
+            raise web.HTTPNotFound()
+        return { **basic_info(), 'worker' : worker}
 
     return routes
 
