@@ -24,7 +24,7 @@
             {% if event.type.value == 'build' and event.status.value == 'success' %}
                 <tr>
                     <td><a href="/build/{{event.id}}">Build #{{event.id}}</a></td>
-                    <td>{{event.name}}</td>
+                    <td><a href="/package/{{event.tag}}">{{event.name}}</a></td>
                     <td>{{event.started}}</td>
                     <td>{{event.ended}}</td>
                 </tr>

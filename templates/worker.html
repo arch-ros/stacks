@@ -2,17 +2,17 @@
 
 {% set page_path='None' %}
 
-{% set title='Build #{}: {}'.format(build.id, build.name) %}
+{% set title='Worker {}'.format(worker.name) %}
 {% block header %}
-    Build #{{build.id}}: <a href="/package/{{build.tag}}">{{build.name}}</a>
+Worker: <a href="/worker/{{worker.name}}">{{worker.name}}</a>
 {% endblock %}
 
 {% import 'ui.html' as ui %}
 {% import 'vis.html' as vis %}
 
 {% block content %}
-    {% call ui.block_card() %}
-    {% endcall %}
 {% endblock %}
+
+
 
 

@@ -60,6 +60,10 @@ class Package:
         self.parent = parent
 
     @property
+    def tag(self):
+        return self.parent if self.parent else self.name
+
+    @property
     def hash_str(self):
         return self.type + ' ' + self.name + ' ' + ('/'.join(self.arch) if self.arch else '')
 

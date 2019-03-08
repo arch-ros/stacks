@@ -53,10 +53,16 @@ def make_routes(scheduler, event_log, workers, databases):
 
     # Package pages (by tag):
     @routes.get('/package/{tag}')
-    @aiohttp_jinja2.template('package.html')
     async def package(request):
         tag = request.match_info['tag']
-        return { **basic_info(), 'tag' : tag}
+        raise web.HTTPFound('/tag/' + tag)
+
+    @routes.get('/tag/{tag}')
+    @aiohttp_jinja2.template('tag.html')
+    async def tag(request):
+        tag = request.match_info['tag']
+        history = event_log.get_events_by_tag(tag)
+        return { **basic_info(), 'tag' : tag, 'history': history}
 
     # Database pages:
     @routes.get('/database/{name}')
@@ -73,7 +79,6 @@ def make_routes(scheduler, event_log, workers, databases):
 
         return { **basic_info(), 'database' : database}
 
-
     # Worker pages:
     @routes.get('/worker/{name}')
     @aiohttp_jinja2.template('worker.html')
@@ -87,6 +92,10 @@ def make_routes(scheduler, event_log, workers, databases):
         if worker is None:
             raise web.HTTPNotFound()
         return { **basic_info(), 'worker' : worker}
+
+    @aiohttp_jinja2.template('404.html')
+    async def handle(request):
+        return { **basic_info() }
 
     return routes
 

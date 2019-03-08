@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% set page_path='None' %}
+
+{% set title='Database {}'.format(database.name) %}
+{% block header %}
+    Database: {{database.name}}
+{% endblock %}
+
+{% import 'ui.html' as ui %}
+{% import 'vis.html' as vis %}
+
+{% block content %}
+    {% call ui.table_card('Packages') %}
+        <thead>
+            <tr>
+                <th>Package</th>
+                <th>Version</th>
+                <th>Arch</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pkg in database %}
+                <tr>
+                    <td><a href="/package/{{pkg.tag}}">{{pkg.name}}</a></td>
+                    <td>{{pkg.version}}</td>
+                    <td>{{pkg.arch|join(', ')}}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    {% endcall %}
+{% endblock %}
+
+
+

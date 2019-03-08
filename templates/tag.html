@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% set page_path='None' %}
+
+{% set title='Package {}'.format(tag) %}
+{% block header %}
+Package: <a href="/tag/{{tag}}">{{tag}}</a>
+{% endblock %}
+
+{% import 'ui.html' as ui %}
+{% import 'vis.html' as vis %}
+
+{% block content %}
+    {% call ui.row() %}
+        {% for event in history[::-1] %}
+            {{ vis.event_card(event) }}
+        {% endfor %}
+    {% endcall %}
+{% endblock %}
+
+
+
+
+
