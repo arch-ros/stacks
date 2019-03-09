@@ -35,39 +35,128 @@ class Worker:
         raise NotImplementedError()
 
 class Queue(asyncio.Queue):
+    def __init__(self, maxsize=0, *, loop=None):
+        super().__init__(maxsize=maxsize, loop=loop)
+        self._running = set()
+
+    def _get(self):
+        elem = self._queue.popleft()
+        self._running.add(elem)
+        return elem
+
+    def task_done(self, task):
+        super().task_done()
+        self._running.remove(task)
+
     @property
     def waiting(self):
         return list(self._queue)
+
+    @property
+    def running(self):
+        return set(self._running)
+
+    @property
+    def tasks(self):
+        return list(self.running) + self.waiting
+
+class CronTask:
+    def __init__(self):
+        pass
+
+    @property
+    def name(self):
+        raise NotImplementedError()
+
+    @property
+    def next_job(self):
+        raise NotImplementedError()
+
+    @property
+    def next_time(self):
+        raise NotImplementedError()
+
+    def produces(self, package):
+        raise NotImplementedError()
+
+    def start(self, scheduler):
+        pass
+
+    def stop(self, scheduler):
+        pass
+
+class Reschedule(CronTask):
+    def __init__(self, job, delay):
+        self.job = job
+        self.delay = delay
+        self.time = None
+
+    @property
+    def name(self):
+        return 'Reschedule ' + self.job.tag
+
+    @property
+    def next_job(self):
+        return self.job
+
+    @property
+    def next_time(self):
+        return self.time
+
+    def produces(self, package):
+        return self.job.produces(package)
+
+    async def run(self, scheduler):
+        self.time = datetime.datetime.now() + \
+                    datetime.timedelta(seconds=self.delay)
+        await asyncio.sleep(self.delay)
+        scheduler.enqueue(self.job)
+        scheduler.unschedule(self)
+
+    def start(self, scheduler):
+        loop = asyncio.get_running_loop()
+        loop.call_soon(lambda: asyncio.create_task(self.run(scheduler)))
+
+    def stop(self, scheduler):
+        pass
+
 
 class Scheduler:
     def __init__(self, binaries, sources):
         self._binaries = binaries
         self._sources = sources
-
-        self._unbuilt = DerivedDatabase('unbuilt', [self._sources],
-                            filter=lambda pkg: not pkg in self._binaries)
-
-        # build queue
+        self.cron_tasks = list()
         self.queue = Queue()
-        # things this scheduler has scheduled
-        # so we don't accidentally re-schedule them
-        self._scheduled = set()
+
+    async def enqueue(self, job):
+        logger.info('queuing {}'.format(job.tag))
+        await self.queue.put(job)
+
+    def schedule(self, task):
+        self.cron_tasks.append(task)
+        task.start(self)
+
+    def unschedule(self, task):
+        task.stop(self)
+        self.cron_tasks.remove(task)
 
     async def schedule_loop(self):
         while True:
-            # only schedule more things if something
-            # has changed with the queue
+            # only schedule more things if 
+            # the queue is empty
             await self.queue.join()
-            self._unbuilt.update()
-            for pkg in self._unbuilt:
+
+            self._binaries.update()
+            self._sources.update()
+            for pkg in self._sources:
+                if pkg in self._binaries:
+                    continue
                 # if this package is not produced
                 # by anything we have previously scheduled
-                if not any([j.produces(pkg) for j in self._scheduled]):
-                    tag = pkg.name
-                    job = Job(datetime.datetime.now(), tag, pkg)
-                    self._scheduled.add(job)
-                    logger.info('queuing {}'.format(str(pkg)))
-                    await self.queue.put(job)
+                if not any([j.produces(pkg) for j in (self.queue.tasks + self.cron_tasks)]):
+                    job = Job(datetime.datetime.now(), pkg.tag, pkg)
+                    await self.enqueue(job)
+
             if self.queue.empty():
                 await asyncio.sleep(60)
 

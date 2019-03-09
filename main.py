@@ -21,10 +21,10 @@ async def main():
     logger = Logger('main')
 
     # repository to push to
-    pearl_repo = Repository('pearl-repo', '/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
+    pearl_repo = Repository('/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
 
     # built repository
-    pearl_bin = BinaryDatabase('pearl', '/home/reactor/pacman-repo/pacman.conf')
+    pearl_bin = BinaryDatabase('pearl', '/home/oyster/pacman-repo/pacman.conf')
 
     # For archlinux source repository
     def update_fs(db, directory):
@@ -39,7 +39,7 @@ async def main():
                 dirs.append(src_x86_path)
         return dirs
 
-    arch_source = SourceDatabase('archlinux-source', '/home/reactor/packages/archlinux', find_package_dirs)
+    arch_source = SourceDatabase('archlinux-source', '/home/oyster/packages/archlinux', find_package_dirs)
 
     # For aur source repository
     def update_fs(db, directory):
@@ -54,10 +54,10 @@ async def main():
                 dirs.append(path)
         return dirs
 
-    aur_source = SourceDatabase('aur-source', '/home/reactor/packages/aur', find_package_dirs)
+    aur_source = SourceDatabase('aur-source', '/home/oyster/packages/aur', find_package_dirs)
 
     # Combined source repository
-    pearl_src = DerivedDatabase('sources', [arch_source, aur_source])
+    pearl_src = DerivedDatabase('source', [arch_source, aur_source])
 
     # when things are removed from the 
     # source repository, remove them from the pearl repository
@@ -65,31 +65,29 @@ async def main():
     # pearl_src.add_remove_listener(lambda p: pearl_repo.remove(p.name))
 
     # Create a build queue
-    workers = [ChrootWorker('worker1', '/home/reactor/chroots/worker1',
-                                         '/home/reactor/chroots/pacman.conf',
+    workers = [ChrootWorker('worker1', '/home/oyster/chroots/worker1',
+                                         '/home/oyster/chroots/pacman.conf',
                                          '/repo/pearl/packages',
-                                         '/home/reactor/chroots/mkarchroot',
-                                         '/home/reactor/chroots/makechrootpkg')]
-
-    def push_results(job, build):
-        if build.status != BuildStatus.SUCCESS:
-            return
-
-        for f in build.artifacts['binary_files']:
-            pearl_repo.add(f)
-
-    # push the results
-    # after the worker is done
-    for w in workers:
-        w.add_listener(push_results)
-
+                                         '/home/oyster/chroots/mkarchroot',
+                                         '/home/oyster/chroots/makechrootpkg')]
     event_log = EventLog()
 
     scheduler = Scheduler(pearl_bin, pearl_src)
 
-    await asyncio.gather(run_website(scheduler, event_log, workers, [ pearl_bin ]),
+    async def handle_result(job, build):
+        if build.status == BuildStatus.FAILURE:
+            scheduler.schedule(Reschedule(job, 3600))
+        if build.status == BuildStatus.SUCCESS:
+            for f in build.artifacts['binary_files']:
+                await pearl_repo.add(f, logger=build.logger)
+        pearl_bin.update()
+
+    for w in workers:
+        w.add_listener(handle_result)
+
+    await asyncio.gather(run_website(scheduler, event_log, workers, [ pearl_bin, pearl_src ]),
                          run_scheduler(scheduler, event_log, workers))
-    #await run_website(scheduler, event_log, workers, [ pearl_bin ])
+    #await run_website(scheduler, event_log, workers, [ pearl_bin, pearl_src ])
 
 async def run_scheduler(scheduler, build_log, workers):
     await scheduler.run(build_log, workers)

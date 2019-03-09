@@ -26,5 +26,27 @@
         {% endfor %}
     </tbody>
     {% endcall %}
+    {% call ui.table_card('Cron Tasks') %}
+    <thead>
+        <tr>
+            <th>Task Name</th>
+            <th>Package Name</th>
+            <th>Package Version</th>
+            <th>Package Arch</th>
+            <th>Runs In</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for task in scheduler.cron_tasks %}
+        <tr>
+            <td>{{task.name}}</td>
+            <td><a href="/package/{{task.next_job.package.tag}}">{{task.next_job.package.name}}</a></td>
+            <td>{{task.next_job.package.version}}</td>
+            <td>{{task.next_job.package.arch|join(', ')}}</td>
+            <td>{{task.next_time - time}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    {% endcall %}
 {% endblock content %}
 

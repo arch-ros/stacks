@@ -5,8 +5,10 @@ from ..job import Worker, Job
 import sys
 import os
 from .. import util
+from .pkgbuild import PkgBuild
 
 import logbook
+import inspect
 
 class ChrootWorker(Worker):
     def __init__(self, name, root, pacman_conf, bind_dir, mkrootcmd, mkpkgcmd):
@@ -37,16 +39,17 @@ class ChrootWorker(Worker):
         build.set_running()
 
         src_dir = job.package.artifacts['source_directory']
+        pkgbuild = PkgBuild(os.path.join(src_dir, 'PKGBUILD'))
+        pkgs = pkgbuild.packages
 
-        result_file = job.package.name + '-' + str(job.package.version) + \
-                        '-' + '-'.join(job.package.arch) + '.pkg.tar.xz'
-        result_path = os.path.join(src_dir, result_file)
+        result_files = [p.name + '-' + str(p.version) + '-' + \
+                        '-'.join(p.arch) + '.pkg.tar.xz' for p in pkgs]
+        result_paths = [os.path.join(src_dir, f) for f in result_files]
 
         # check if already built
-        if os.path.exists(result_path):
-            logger.debug('package file found {}'.format(result_file))
-
-            build.add_artifact('binary_files', [result_path])
+        if all([os.path.exists(p) for p in result_paths]):
+            logger.debug('package files found: {}'.format(', '.join(result_paths)))
+            build.add_artifact('binary_files', result_paths)
             build.ended_now()
             build.set_success()
             return
@@ -61,19 +64,19 @@ class ChrootWorker(Worker):
             build.set_failure()
             return
 
-        if os.path.exists(result_path):
-            logger.debug('package file found {}'.format(result_file))
-            build.add_artifact('binary_files', [result_path])
+        if all([os.path.exists(p) for p in result_paths]):
+            logger.debug('package files found {}'.format(', '.join(result_paths)))
+            build.add_artifact('binary_files', result_paths)
             build.ended_now()
             build.set_failure()
             return
         else:
-            logger.error('could not find result file {}'.format(result_file))
+            missing = filter(lambda p: not os.path.exists(p), result_paths)
+            logger.error('could not find result files: {}'.format(', '.join(missing)))
             build.add_artifact('binary_files', [])
             build.ended_now()
             build.set_failure()
             return
-
 
     async def run(self, event_log, queue):
         while True:
@@ -84,5 +87,8 @@ class ChrootWorker(Worker):
             await self._exec(job, build)
             # notify listeners
             for l in self.listeners:
-                l(job, build)
-            queue.task_done()
+                if inspect.iscoroutinefunction(l):
+                    await l(job, build)
+                else:
+                    l(job, build)
+            queue.task_done(job)

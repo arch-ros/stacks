@@ -21,15 +21,16 @@ async def run_proc_async(args, logger, cwd=None):
                   stderr=asyncio.subprocess.STDOUT, cwd=cwd)
 
     out = proc.stdout
-    while True:
-        line = await out.readline()
-        if line == b'':
-            break
-        try:
-            line = line.decode('utf-8').rstrip()
-            logger.trace(line)
-        except UnicodeDecodeError:
-            continue
+    if logger:
+        while True:
+            line = await out.readline()
+            if line == b'':
+                break
+            try:
+                line = line.decode('utf-8').rstrip()
+                logger.trace(line)
+            except UnicodeDecodeError:
+                continue
     exitcode = await proc.wait()
     if exitcode != 0:
         return False

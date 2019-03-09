@@ -40,7 +40,8 @@ class BinaryDatabase(Database):
                                   make_depends=[],
                                   check_depends=[],
                                   provides=pkg.provides,
-                                  replaces=pkg.replaces)
+                                  replaces=pkg.replaces,
+                                  parent=pkg.base if pkg.base != pkg.name else None)
                 new_db.add(package)
         self.replace(new_db)
 
@@ -60,8 +61,9 @@ class SourceDatabase(Database):
         self._logger.debug('scanning for changes'.format(self.name))
         for d in pkg_dirs:
             self._logger.trace('getting pkgbuild info of {}'.format(d))
-            pkg = PkgBuild(os.path.join(d, 'PKGBUILD')).package_info
-            pkg.artifacts['source_directory'] = d
-            new_db.add(pkg)
+            packages = PkgBuild(os.path.join(d, 'PKGBUILD')).packages
+            for p in packages:
+                p.artifacts['source_directory'] = d
+                new_db.add(p)
         self._logger.debug('done scanning')
         self.replace(new_db)
