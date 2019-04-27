@@ -8,15 +8,33 @@ import pyalpm
 
 import logbook
 
-class BinaryDatabase(Database):
+def _from_alpm_pkg(pkg):
+    package = Package(type='pacman',
+                      name=pkg.name,
+                      version=Version.parse(pkg.version),
+                      arch=[pkg.arch],
+                      groups=pkg.groups,
+                      depends=[Dependency.parse(x) for x in pkg.depends],
+                      opt_depends=[Dependency.parse(x) for x in pkg.optdepends],
+                      make_depends=[],
+                      check_depends=[],
+                      provides=pkg.provides,
+                      replaces=pkg.replaces,
+                      parent=pkg.base if pkg.base != pkg.name else None)
+    return package
+
+def _default_find_packages(db, directory):
+    return list(map(lambda f: os.path.join(directory, f),
+                filter(lambda f: f.endswith('.pkg.tar.xz'),
+                                 os.listdir(directory))))
+
+class RemoteDatabase(Database):
     def __init__(self, name, pacman_conf):
         super().__init__(name)
         self._logger = logbook.Logger(name)
 
         self._pacman_conf = pacman_conf
         self._pacman_handle = pycman.config.PacmanConfig(conf=self._pacman_conf).initialize_alpm()
-
-        self.update()
 
     def update(self):
         new_db = Database()
@@ -30,19 +48,28 @@ class BinaryDatabase(Database):
         for db in self._pacman_handle.get_syncdbs():
             packages = db.search('')
             for pkg in packages:
-                package = Package(type='pacman',
-                                  name=pkg.name,
-                                  version=Version.parse(pkg.version),
-                                  arch=[pkg.arch],
-                                  groups=pkg.groups,
-                                  depends=[Dependency.parse(x) for x in pkg.depends],
-                                  opt_depends=[Dependency.parse(x) for x in pkg.optdepends],
-                                  make_depends=[],
-                                  check_depends=[],
-                                  provides=pkg.provides,
-                                  replaces=pkg.replaces,
-                                  parent=pkg.base if pkg.base != pkg.name else None)
+                package = _from_alpm_pkg(pkg)
                 new_db.add(package)
+        self.replace(new_db)
+
+class BinaryDatabase(Database):
+    def __init__(self, name, directory, find_packages=_default_find_packages):
+        super().__init__(name)
+        self._logger = logbook.Logger(name)
+        self._directory = directory
+        self._find_packages = find_packages
+
+        self._pacman_handle = pyalpm.Handle('/', '/var/lib/pacman')
+        self.update()
+
+    def update(self):
+        new_db = Database()
+        self._logger.debug('scanning for changes for {}'.format(self.name))
+        pkgs = self._find_packages(self, self._directory)
+        for pkg_path in pkgs:
+            self._logger.trace('getting package info for {}'.format(pkg_path))
+            pkg = self._pacman_handle.load_pkg(pkg_path)
+            new_db.add(_from_alpm_pkg(pkg))
         self.replace(new_db)
 
 class SourceDatabase(Database):
@@ -52,13 +79,11 @@ class SourceDatabase(Database):
         self._directory = directory
         self._find_dirs = find_dirs
 
-        self.update()
-
     def update(self):
         new_db = Database()
         pkg_dirs = self._find_dirs(self, self._directory)
 
-        self._logger.debug('scanning for changes'.format(self.name))
+        self._logger.debug('scanning for changes for {}'.format(self.name))
         for d in pkg_dirs:
             self._logger.trace('getting pkgbuild info of {}'.format(d))
             packages = PkgBuild(os.path.join(d, 'PKGBUILD')).packages

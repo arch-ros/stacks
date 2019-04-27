@@ -75,13 +75,14 @@ def _extract_function(source, funcname):
         return result.group(2)
 
 def _extract_proplines(source):
-    reg = '(' + \
+    reg = '(\[\[[^\[\]\n]*\]\])|(' + \
             '|'.join(map(lambda prop: '(?:' + prop + '\s*=\s*\([^\(\)]*\))|' + \
                                       '(?:' + prop + '\s*=.*\n)',
                         PKGBUILD_PROPS)) \
               + ')'
     it = regex.finditer(reg, source)
-    return '\n'.join(map(lambda m: m.group(0).strip(), it))
+    return '\n'.join(filter(lambda s: not s.startswith('[['), # remove [[ ]] answers
+                        map(lambda m: m.group(0).strip(), it)))
 
 """ Represents a PKGBUILD file and has utilities for extracting information
     like the package version, name, etc. """

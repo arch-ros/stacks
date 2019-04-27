@@ -2,6 +2,7 @@ import os
 import threading
 import asyncio
 import time
+import atexit
 
 from aiohttp import web
 
@@ -23,8 +24,7 @@ async def main():
     # repository to push to
     pearl_repo = Repository('/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
 
-    # built repository
-    pearl_bin = BinaryDatabase('pearl', '/home/oyster/pacman-repo/pacman.conf')
+    pearl_bin = BinaryDatabase('pearl', '/repo/pearl/packages')
 
     # For archlinux source repository
     def update_fs(db, directory):
@@ -33,10 +33,12 @@ async def main():
     def find_package_dirs(db, directory):
         dirs = []
         for f in os.listdir(directory):
-            src_x86_path = os.path.join(directory, f, 'repos', 'core-x86_64')
-            pkgbuild_x86_path = os.path.join(src_x86_path, 'PKGBUILD')
-            if os.path.isdir(src_x86_path) and os.path.exists(pkgbuild_x86_path):
-                dirs.append(src_x86_path)
+            paths = ['core-x86_64', 'core-any', 'extra-x86_64', 'extra-any']
+            for p in paths:
+                path = os.path.join(directory, f, 'repos', p)
+                pkgbuild_path= os.path.join(path, 'PKGBUILD')
+                if os.path.isdir(path) and os.path.isfile(pkgbuild_path):
+                    dirs.append(path)
         return dirs
 
     arch_source = SourceDatabase('archlinux-source', '/home/oyster/packages/archlinux', find_package_dirs)
@@ -72,6 +74,9 @@ async def main():
                                          '/home/oyster/chroots/makechrootpkg')]
     event_log = EventLog()
 
+    event_log.load('/home/oyster/history.json')
+    atexit.register(lambda: event_log.save('/home/oyster/history.json'))
+
     scheduler = Scheduler(pearl_bin, pearl_src)
 
     async def handle_result(job, build):
@@ -80,7 +85,6 @@ async def main():
         if build.status == BuildStatus.SUCCESS:
             for f in build.artifacts['binary_files']:
                 await pearl_repo.add(f, logger=build.logger)
-        pearl_bin.update()
 
     for w in workers:
         w.add_listener(handle_result)

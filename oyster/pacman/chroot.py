@@ -68,7 +68,7 @@ class ChrootWorker(Worker):
             logger.debug('package files found {}'.format(', '.join(result_paths)))
             build.add_artifact('binary_files', result_paths)
             build.ended_now()
-            build.set_failure()
+            build.set_success()
             return
         else:
             missing = filter(lambda p: not os.path.exists(p), result_paths)

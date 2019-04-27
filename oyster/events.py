@@ -3,6 +3,8 @@ import threading
 import logbook
 import sys
 import datetime
+import json
+import os
 
 from enum import Enum
 
@@ -14,10 +16,37 @@ class Event:
         self.type = type
         self.tag = tag
 
+    @property
+    def pack(self):
+        raise NotImplementedError()
+
+    @staticmethod
+    def unpack(value):
+        if value['type'] == EventType.BUILD.value:
+            return Build.unpack(value)
+
 class EventLog:
     def __init__(self):
         self.history = []
         self.current_id = 0
+
+    def save(self, filepath):
+        data = [x.pack for x in self.history]
+        with open(filepath, 'w') as f:
+            json.dump(data, f)
+
+    def load(self, filepath):
+        if not os.path.isfile(filepath):
+            return
+        with open(filepath) as f:
+            data = json.load(f)
+            for e in data:
+                self.history.append(Event.unpack(e))
+
+        # update the current_id
+        for e in data:
+            if hasattr(e, 'id'):
+                self.current_id = max(e.id, self.current_id)
 
     def get_build_by_id(self, id):
         for event in self.history:
@@ -46,16 +75,18 @@ class BuildStatus(Enum):
     FAILURE = 'failure'
 
 class Build(Event):
-    def __init__(self, id, tag, name, worker):
+    def __init__(self, id, tag, name, worker, 
+                        log='', artifacts={}, status=BuildStatus.WAITING,
+                        started=None, ended=None):
         super().__init__(EventType.BUILD, tag)
         self.id = id
         self.name = name
         self.worker = worker
-        self.log = ''
-        self.artifacts = {} # Outputs
-        self.status = BuildStatus.WAITING
-        self.started = None
-        self.ended = None
+        self.log = log
+        self.artifacts = dict(artifacts) # Outputs
+        self.status = status
+        self.started = started
+        self.ended = ended
 
     @property
     def logger(self):
@@ -88,3 +119,23 @@ class Build(Event):
 
     def add_artifact(self, name, artifact):
         self.artifacts[name] = artifact
+
+    @property
+    def pack(self):
+        return {'type' : EventType.BUILD.value,
+                'id': self.id,
+                'name': self.name,
+                'tag': self.tag,
+                'status': self.status.value,
+                'worker': self.worker,
+                'artifacts': self.artifacts,
+                'started': self.started.strftime('%m/%d/%Y %H:%M:%S'),
+                'ended': self.ended.strftime('%m/%d/%Y %H:%M:%S') if ended else '',
+                'log': self.log}
+
+    @staticmethod
+    def unpack(value):
+        return Build(int(value['id']), value['tag'], value['name'], value['worker'],
+                         value['log'], value['artifacts'], BuildStatus(value['status']),
+                         datetime.datetime.strptime(value['started'], '%m/%d/%Y %H:%M:%S') if len(value['started']) > 0 else None,
+                         datetime.datetime.strptime(value['ended'], '%m/%d/%Y %H:%M:%S') if len(value['ended']) > 0 else None)
