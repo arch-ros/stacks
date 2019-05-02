@@ -16,6 +16,14 @@ class Job:
         self.tag = tag
         self.package = package
 
+    def can_run(self, dependency_resolver):
+        # If built contains all the dependencies for
+        # the package, run this job
+        dependencies = self.package.depends + self.package.make_depends
+        #missing = list(filter(lambda x: not x.satisfied_by(dependency_resolver), dependencies))
+        #print('{} missing {}'.format(self.package.name, missing))
+        return all(map(lambda x: x.satisfied_by(dependency_resolver), dependencies))
+
     def produces(self, package):
         return package.name == self.package.name or \
                (package.parent is not None and package.parent == self.package.parent)
@@ -122,10 +130,16 @@ class Reschedule(CronTask):
 
 
 class Scheduler:
-    def __init__(self, binaries, sources):
+    def __init__(self, binaries, sources, dependency_resolver=None):
         self._binaries = binaries
         self._sources = sources
+        self._dependency_resolver = dependency_resolver
         self.cron_tasks = list()
+
+        # Things are taken from
+        # waiting an put in the build
+        # queue when they can be built
+        self.waiting = set()
         self.queue = Queue()
 
     async def enqueue(self, job):
@@ -155,6 +169,12 @@ class Scheduler:
                 # by anything we have previously scheduled
                 if not any([j.produces(pkg) for j in (self.queue.tasks + self.cron_tasks)]):
                     job = Job(datetime.datetime.now(), pkg.tag, pkg)
+                    self.waiting.add(job)
+
+            # The waiting jobs are waiting for dependencies
+            # (unlike queue.waiting, which are waiting for a free worker)
+            for job in self.waiting:
+                if job.can_run(self._dependency_resolver):
                     await self.enqueue(job)
 
             if self.queue.empty():

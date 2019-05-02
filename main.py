@@ -18,14 +18,7 @@ from oyster.events import *
 from oyster.database import *
 from oyster.job import *
 
-async def main():
-    logger = Logger('main')
-
-    # repository to push to
-    pearl_repo = Repository('/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
-
-    pearl_bin = BinaryDatabase('pearl', '/repo/pearl/packages')
-
+def create_arch_source_repo():
     # For archlinux source repository
     def update_fs(db, directory):
         return False
@@ -41,8 +34,9 @@ async def main():
                     dirs.append(path)
         return dirs
 
-    arch_source = SourceDatabase('archlinux-source', '/home/oyster/packages/archlinux', find_package_dirs)
+    return SourceDatabase('archlinux-source', '/home/oyster/packages/archlinux', find_package_dirs)
 
+def create_ros_database():
     # For aur source repository
     def update_fs(db, directory):
         return False
@@ -56,15 +50,24 @@ async def main():
                 dirs.append(path)
         return dirs
 
-    aur_source = SourceDatabase('aur-source', '/home/oyster/packages/aur', find_package_dirs)
+    return SourceDatabase('ros-source', '/home/oyster/packages/ros', find_package_dirs)
+
+async def main():
+    logger = Logger('main')
+
+    # repository to push to
+    pearl_repo = Repository('/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
+
+    # The pearl packages
+    pearl_bin = BinaryDatabase('pearl', '/repo/pearl/packages')
+    # The arch linux packages, updated only at start
+    arch_bin = RemoteDatabase('arch', '/home/oyster/arch-repo/pacman.conf', True)
+    combined_bin = DerivedDatabase('binaries', [pearl_bin, arch_bin])
+    combined_bin.update()
+
 
     # Combined source repository
-    pearl_src = DerivedDatabase('source', [arch_source, aur_source])
-
-    # when things are removed from the 
-    # source repository, remove them from the pearl repository
-    # TODO: This doesn't work if the version just changes
-    # pearl_src.add_remove_listener(lambda p: pearl_repo.remove(p.name))
+    pearl_src = DerivedDatabase('source', [create_ros_database()])
 
     # Create a build queue
     workers = [ChrootWorker('worker1', '/home/oyster/chroots/worker1',
@@ -77,7 +80,7 @@ async def main():
     event_log.load('/home/oyster/history.json')
     atexit.register(lambda: event_log.save('/home/oyster/history.json'))
 
-    scheduler = Scheduler(pearl_bin, pearl_src)
+    scheduler = Scheduler(pearl_bin, pearl_src, dependency_resolver=combined_bin)
 
     async def handle_result(job, build):
         if build.status == BuildStatus.FAILURE:
@@ -91,7 +94,6 @@ async def main():
 
     await asyncio.gather(run_website(scheduler, event_log, workers, [ pearl_bin, pearl_src ]),
                          run_scheduler(scheduler, event_log, workers))
-    #await run_website(scheduler, event_log, workers, [ pearl_bin, pearl_src ])
 
 async def run_scheduler(scheduler, build_log, workers):
     await scheduler.run(build_log, workers)

@@ -130,7 +130,7 @@ class Build(Event):
                 'worker': self.worker,
                 'artifacts': self.artifacts,
                 'started': self.started.strftime('%m/%d/%Y %H:%M:%S'),
-                'ended': self.ended.strftime('%m/%d/%Y %H:%M:%S') if ended else '',
+                'ended': self.ended.strftime('%m/%d/%Y %H:%M:%S') if self.ended else '',
                 'log': self.log}
 
     @staticmethod

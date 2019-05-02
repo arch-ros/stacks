@@ -18,13 +18,19 @@ class Diff:
 class Database:
     def __init__(self, name='', packages=[]):
         self.name = name
-        if len(packages) > 0:
-            self._packages = { x.hash_str : x for x in packages }
-        else:
-            self._packages = {}
+        self._packages = {}
+        self._packages_by_name = {}
         self._listeners = []
 
-    # getters and iterators
+        if len(packages) > 0:
+            for x in packages:
+                self._add(x)
+
+    # Getters
+
+    # gets all packages with a particular name
+    def find(self, name):
+        return self._packages_by_name.get(name, [])
 
     def __iter__(self):
         for package in self._packages.values():
@@ -60,12 +66,18 @@ class Database:
             l(diffs)
 
     # modifiers
-
     def _add(self, pkg):
         self._packages[pkg.hash_str] = pkg
+        if not pkg.name in self._packages_by_name:
+            self._packages_by_name[pkg.name] = []
+        self._packages_by_name[pkg.name].append(pkg)
 
     def _remove(self, pkg):
         del self._packages[pkg.hash_str]
+        if len(self._packages_by_name[pkg.name]) == 1:
+            del self._packages_by_name[pkg.name]
+        else:
+            self._packages_by_name[pkg.name].remove(pkg)
     
     def add(self, pkg):
         if pkg not in self:

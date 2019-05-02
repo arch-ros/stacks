@@ -5,11 +5,39 @@ from enum import Enum
 import copy
 
 class Dependency:
-    def __init__(self, name):
+    # Consists of a name, a min version, a max version, and whether those are inclusive bounds
+    def __init__(self, name, min_version=None, max_version=None):
         self.name = name
+        self.min_version = min_version
+        self.max_version = max_version
+
+    # Check to see if the dependencies
+    # are satisfied by the binaries repository
+    def satisfied_by(self, resolver):
+        if resolver is None: # If we don't have a resolver, just assume we can build
+            return True
+        return len(resolver.find(self.name)) > 0
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.name
     
     @staticmethod
     def parse(dep):
+        if ':' in dep:
+            dep = dep.split(':')[0]
+        if '>=' in dep:
+            name, version = tuple(dep.split('>='))
+            return Dependency(name, min_version=Version.parse(version))
+        if '<=' in dep:
+            name, version = tuple(dep.split('<='))
+            return Dependency(name, max_version=Version.parse(version))
+        if '=' in dep:
+            name, version = tuple(dep.split('='))
+            v = Version.parse(version)
+            return Dependency(name, min_version=v, max_version=v)
         return Dependency(dep)
 
 class Version:

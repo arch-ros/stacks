@@ -29,14 +29,23 @@ def _default_find_packages(db, directory):
                                  os.listdir(directory))))
 
 class RemoteDatabase(Database):
-    def __init__(self, name, pacman_conf):
+    def __init__(self, name, pacman_conf, update_once=False):
         super().__init__(name)
         self._logger = logbook.Logger(name)
 
         self._pacman_conf = pacman_conf
         self._pacman_handle = pycman.config.PacmanConfig(conf=self._pacman_conf).initialize_alpm()
 
+        # If update_once is set only run on constructor
+        self._update_once = False
+        if update_once:
+            self.update()
+            self._update_once = update_once
+
     def update(self):
+        if self._update_once:
+            return
+
         new_db = Database()
         self._logger.debug('updating pacman databases for {}'.format(self.name))
         for db in self._pacman_handle.get_syncdbs():

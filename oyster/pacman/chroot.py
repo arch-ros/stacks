@@ -42,14 +42,25 @@ class ChrootWorker(Worker):
         pkgbuild = PkgBuild(os.path.join(src_dir, 'PKGBUILD'))
         pkgs = pkgbuild.packages
 
-        result_files = [p.name + '-' + str(p.version) + '-' + \
-                        '-'.join(p.arch) + '.pkg.tar.xz' for p in pkgs]
-        result_paths = [os.path.join(src_dir, f) for f in result_files]
+        # Result files contains a set of option per file name
+        result_files = [[p.name + '-' + str(p.version) + '-' + \
+                        a + '.pkg.tar.xz' for a in p.arch] for p in pkgs]
+        result_paths = [[os.path.join(src_dir, fn) for fn in f] for f in result_files]
+
+        # This could probably be rewritten functionally to be very beautiful
+        def collect_files():
+            result_files = []
+            for options in result_paths:
+                for f in options:
+                    if os.path.exists(f):
+                        result_files.append(f)
+            return result_files
 
         # check if already built
-        if all([os.path.exists(p) for p in result_paths]):
-            logger.debug('package files found: {}'.format(', '.join(result_paths)))
-            build.add_artifact('binary_files', result_paths)
+        if len(collect_files()) == len(result_paths):
+            files = collect_files()
+            logger.debug('package files found: {}'.format(', '.join(files)))
+            build.add_artifact('binary_files', files)
             build.ended_now()
             build.set_success()
             return
@@ -64,15 +75,15 @@ class ChrootWorker(Worker):
             build.set_failure()
             return
 
-        if all([os.path.exists(p) for p in result_paths]):
-            logger.debug('package files found {}'.format(', '.join(result_paths)))
-            build.add_artifact('binary_files', result_paths)
+        if len(collect_files()) == len(result_paths):
+            files = collect_files()
+            logger.debug('package files found {}'.format(', '.join(files)))
+            build.add_artifact('binary_files', files)
             build.ended_now()
             build.set_success()
             return
         else:
-            missing = filter(lambda p: not os.path.exists(p), result_paths)
-            logger.error('could not find result files: {}'.format(', '.join(missing)))
+            logger.error('could not find result files')
             build.add_artifact('binary_files', [])
             build.ended_now()
             build.set_failure()
