@@ -37,7 +37,7 @@ class Database:
             yield package
 
     def __contains__(self, package):
-        return package.hash_str in self._packages
+        return package.identifier in self._packages
 
     def __len__(self):
         return len(self._packages)
@@ -67,13 +67,13 @@ class Database:
 
     # modifiers
     def _add(self, pkg):
-        self._packages[pkg.hash_str] = pkg
+        self._packages[pkg.identifier] = pkg
         if not pkg.name in self._packages_by_name:
             self._packages_by_name[pkg.name] = []
         self._packages_by_name[pkg.name].append(pkg)
 
     def _remove(self, pkg):
-        del self._packages[pkg.hash_str]
+        del self._packages[pkg.identifier]
         if len(self._packages_by_name[pkg.name]) == 1:
             del self._packages_by_name[pkg.name]
         else:
@@ -99,7 +99,7 @@ class Database:
             if pkg not in self:
                 diffs.append(Diff(DiffType.ADDED, None, pkg))
             else:
-                our_package = self._packages[pkg.hash_str].clone()
+                our_package = self._packages[pkg.identifier].clone()
                 their_package = pkg.clone()
                 if our_package != pkg:
                     diffs.append(Diff(DiffType.MODIFIED, our_package, their_package))
@@ -124,7 +124,7 @@ class Database:
                     and (filter is None or filter(d.new)):
 
                 if merge_mode == MergeMode.REPLACE:
-                    self._packages[d.old.hash_str].replace(d.new)
+                    self._packages[d.old.identifier].replace(d.new)
                     applied.append(d)
                 else:
                     raise NotImplementedError('Unknown merge mode')

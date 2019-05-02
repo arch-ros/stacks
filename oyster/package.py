@@ -92,8 +92,8 @@ class Package:
         return self.parent if self.parent else self.name
 
     @property
-    def hash_str(self):
-        return self.type + ' ' + self.name + ' ' + ('/'.join(self.arch) if self.arch else '')
+    def identifier(self):
+        return self.type + ' ' + self.name + ' ' + str(self.version)
 
     def matches(self, other):
         return self.hash_str == other.hash_str

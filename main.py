@@ -56,10 +56,10 @@ async def main():
     logger = Logger('main')
 
     # repository to push to
-    pearl_repo = Repository('/repo/pearl/packages', '/repo/pearl/pearl.db.tar.xz')
+    pearl_repo = Repository('/repo/pearl/', '/repo/pearl/pearl.db.tar.xz')
 
     # The pearl packages
-    pearl_bin = BinaryDatabase('pearl', '/repo/pearl/packages')
+    pearl_bin = RemoteDatabase('pearl', '/home/oyster/pearl-repo/pacman.conf')
     # The arch linux packages, updated only at start
     arch_bin = RemoteDatabase('arch', '/home/oyster/arch-repo/pacman.conf', True)
     combined_bin = DerivedDatabase('binaries', [pearl_bin, arch_bin])
@@ -72,7 +72,7 @@ async def main():
     # Create a build queue
     workers = [ChrootWorker('worker1', '/home/oyster/chroots/worker1',
                                          '/home/oyster/chroots/pacman.conf',
-                                         '/repo/pearl/packages',
+                                         '/repo/pearl',
                                          '/home/oyster/chroots/mkarchroot',
                                          '/home/oyster/chroots/makechrootpkg')]
     event_log = EventLog()

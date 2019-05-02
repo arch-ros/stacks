@@ -25,8 +25,9 @@ class Job:
         return all(map(lambda x: x.satisfied_by(dependency_resolver), dependencies))
 
     def produces(self, package):
-        return package.name == self.package.name or \
-               (package.parent is not None and package.parent == self.package.parent)
+        my_name = self.package.parent if self.package.parent is not None else self.package.name
+        other_name = package.parent if package.parent is not None else package.name
+        return my_name == other_name
 
 # Workers process jobs
 class Worker:
@@ -162,19 +163,24 @@ class Scheduler:
 
             self._binaries.update()
             self._sources.update()
+            self._dependency_resolver.update()
             for pkg in self._sources:
                 if pkg in self._binaries:
                     continue
-                # if this package is not produced
+                # if this package is produced
                 # by anything we have previously scheduled
-                if not any([j.produces(pkg) for j in (self.queue.tasks + self.cron_tasks)]):
-                    job = Job(datetime.datetime.now(), pkg.tag, pkg)
-                    self.waiting.add(job)
+                if any([j.produces(pkg) for j in (self.queue.tasks + self.cron_tasks)]):
+                    continue
+                if any([j.produces(pkg) for j in self.waiting]):
+                    continue
+                job = Job(datetime.datetime.now(), pkg.tag, pkg)
+                self.waiting.add(job)
 
             # The waiting jobs are waiting for dependencies
             # (unlike queue.waiting, which are waiting for a free worker)
-            for job in self.waiting:
+            for job in set(self.waiting):
                 if job.can_run(self._dependency_resolver):
+                    self.waiting.remove(job)
                     await self.enqueue(job)
 
             if self.queue.empty():

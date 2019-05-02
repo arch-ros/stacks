@@ -43,22 +43,24 @@ class EventLog:
             for e in data:
                 self.history.append(Event.unpack(e))
 
-        # update the current_id
-        for e in data:
-            if hasattr(e, 'id'):
-                self.current_id = max(e.id, self.current_id)
+            # update the current_id
+            for e in self.history:
+                if hasattr(e, 'id'):
+                    self.current_id = max(e.id, self.current_id)
 
     def get_build_by_id(self, id):
         for event in self.history:
-            if event.type == EventType.BUILD and event.id == id:
-                return event
+            if hasattr(event, 'id'):
+                if event.type == EventType.BUILD and event.id == id:
+                    return event
         return None
 
     def get_events_by_tag(self, tag):
         events = []
         for event in self.history:
-            if event.tag == tag:
-                events.append(event)
+            if hasattr(event, 'tag'):
+                if event.tag == tag:
+                    events.append(event)
         return events
 
     def create_build(self, tag, name, worker_name):
