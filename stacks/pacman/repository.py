@@ -1,6 +1,7 @@
 import subprocess
 import os
 import shutil
+import asyncio
 
 import logbook
 from .. import util
@@ -9,6 +10,7 @@ class Repository:
     def __init__(self, dir_path, db_path):
         self._dir_path = dir_path
         self._db_path = db_path
+        self._lock = asyncio.Lock()
 
         if not os.path.isdir(self._dir_path):
             os.makedirs(self._dir_path)
@@ -25,11 +27,13 @@ class Repository:
             logger.debug('copying {} to {}'.format(package_path, target_path))
         shutil.copy2(package_path, target_path)
 
+        # Wait until the lock is gone
         if logger:
             logger.info('adding {}'.format(file_name))
-        if not (await util.run_proc_async(['repo-add', self._db_path, target_path],
-                                            logger=logger)):
-            raise IOError('Unable to add package')
+        async with self._lock:
+            if not (await util.run_proc_async(['repo-add', self._db_path, target_path],
+                                                logger=logger)):
+                raise IOError('Unable to add package')
 
 
     async def remove(self, package_name, logger=None):
