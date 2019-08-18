@@ -6,10 +6,14 @@ import copy
 
 class Dependency:
     # Consists of a name, a min version, a max version, and whether those are inclusive bounds
-    def __init__(self, name, min_version=None, max_version=None):
+    def __init__(self, name, min_version=None, max_version=None,
+                             min_incl=True, max_incl=True):
         self.name = name
         self.min_version = min_version
         self.max_version = max_version
+        self.min_inclusive = min_incl
+        self.max_inclusive = max_incl
+
 
     # Check to see if the dependencies
     # are satisfied by the binaries repository
@@ -19,10 +23,15 @@ class Dependency:
         return len(resolver.find(self.name)) > 0
 
     def __str__(self):
-        return self.name
+        type = ''
+        if self.min_version is not None:
+            type = ('>=' if self.min_inclusive else '>') + str(self.min_version)
+        if self.max_version is not None:
+            type = ('<=' if self.max_inclusive else '<') + str(self.max_version)
+        return self.name + type
 
     def __repr__(self):
-        return self.name
+        return str(self)
     
     @staticmethod
     def parse(dep):
@@ -30,10 +39,16 @@ class Dependency:
             dep = dep.split(':')[0]
         if '>=' in dep:
             name, version = tuple(dep.split('>='))
-            return Dependency(name, min_version=Version.parse(version))
+            return Dependency(name, min_version=Version.parse(version), min_incl=True)
         if '<=' in dep:
             name, version = tuple(dep.split('<='))
-            return Dependency(name, max_version=Version.parse(version))
+            return Dependency(name, max_version=Version.parse(version), max_incl=True)
+        if '<' in dep:
+            name, version = tuple(dep.split('<'))
+            return Dependency(name, max_version=Version.parse(version), max_incl=False)
+        if '>' in dep:
+            name, version = tuple(dep.split('>'))
+            return Dependency(name, min_version=Version.parse(version), min_incl=False)
         if '=' in dep:
             name, version = tuple(dep.split('='))
             v = Version.parse(version)
@@ -63,9 +78,9 @@ class Version:
         return Version(version, release, epoch_num)
 
 class Package:
-    def __init__(self, type, name, description=None, version=None, arch=[], groups=[], 
-                    provides=[], conflicts=[], replaces=[],
-                    depends=[], make_depends=[], check_depends=[], opt_depends=[],
+    def __init__(self, type, name, description=None, version=None, arch=set(), groups=set(), 
+                    provides=set(), conflicts=set(), replaces=set(),
+                    depends=set(), make_depends=set(), check_depends=set(), opt_depends=set(),
                     artifacts={}, parent=None):
         self.type = type
         self.name = name
@@ -108,6 +123,12 @@ class Package:
         self.provides = other.provides
         self.conflicts = other.conflicts
         self.replaces = other.replaces
+
+        self.depends = other.depends
+        self.make_depends = other.make_depends
+        self.check_depends = other.check_depends
+        self.opt_depends = other.opt_depends
+
         self.artifacts = other.artifacts
         self.parent = other.parent
 
@@ -118,11 +139,16 @@ class Package:
         self.version = self.version if self.version and (not other.version or self.version > other.version) else other.version
         self.arch = self.arch if self.arch and len(self.arch) > 0 else other.arch
 
-        self.groups = self.groups.extend(other.groups)
+        self.groups = self.groups.update(other.groups)
 
-        self.provides.extend(other.provides)
-        self.conflicts.extend(other.conflicts)
-        self.replaces.extend(other.replaces)
+        self.provides.update(other.provides)
+        self.conflicts.update(other.conflicts)
+        self.replaces.update(other.replaces)
+
+        self.depends.update(other.depends)
+        self.make_depends.update(other.make_depends)
+        self.check_depends.update(other.check_depends)
+        self.opt_depends.update(other.opt_depends)
 
         self.artifacts = {**self.artifacts, **other.artifacts}
         self.parent = self.parent if self.parent else other.parent

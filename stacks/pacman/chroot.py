@@ -70,7 +70,10 @@ class ChrootWorker(Worker):
             
         # not already built, do build
         logger.info('starting build {}'.format(self.name))
-        args = [self._updatecmd, self._root_dir]
+
+        # if the root exists, update it
+        update_dir = self._root_dir if os.path.isdir(self._root_dir) else self._chroots_dir + '/root'
+        args = [self._updatecmd, update_dir]
         logger.trace('running {}'.format(' '.join(args)))
         if not (await util.run_proc_async(args, logger, src_dir)):
             build.add_artifact('binary_files', [])

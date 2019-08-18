@@ -32,6 +32,7 @@
             <th>Package Name</th>
             <th>Package Version</th>
             <th>Package Arch</th>
+            <th>Missing Dependencies</th>
             <th>Time Entered</th>
         </tr>
     </thead>
@@ -41,6 +42,7 @@
             <td><a href="/package/{{job.package.tag}}">{{job.package.name}}</a></td>
             <td>{{job.package.version}}</td>
             <td>{{job.package.arch|join(', ')}}</td>
+            <td>{{job.missing_depends(scheduler.depends_resolver)|join(', ')}}</td>
             <td>{{job.time}}</td>
         </tr>
         {% endfor %}

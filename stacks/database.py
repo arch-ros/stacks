@@ -1,5 +1,6 @@
 import threading
 from enum import Enum
+from .package import Dependency
 
 class DiffType(Enum):
     ADDED = 'added'
@@ -19,7 +20,7 @@ class Database:
     def __init__(self, name='', packages=[]):
         self.name = name
         self._packages = {}
-        self._packages_by_name = {}
+        self._provides = {}
         self._listeners = []
 
         if len(packages) > 0:
@@ -29,8 +30,8 @@ class Database:
     # Getters
 
     # gets all packages with a particular name
-    def find(self, name):
-        return self._packages_by_name.get(name, [])
+    def find(self, requirement):
+        return self._provides.get(requirement, [])
 
     def __iter__(self):
         for package in self._packages.values():
@@ -68,16 +69,18 @@ class Database:
     # modifiers
     def _add(self, pkg):
         self._packages[pkg.identifier] = pkg
-        if not pkg.name in self._packages_by_name:
-            self._packages_by_name[pkg.name] = []
-        self._packages_by_name[pkg.name].append(pkg)
+        for p in (pkg.provides | {Dependency(pkg.name)}):
+            if not p in self._provides:
+                self._provides[p.name] = []
+            self._provides[p.name].append(pkg)
 
     def _remove(self, pkg):
         del self._packages[pkg.identifier]
-        if len(self._packages_by_name[pkg.name]) == 1:
-            del self._packages_by_name[pkg.name]
-        else:
-            self._packages_by_name[pkg.name].remove(pkg)
+        for p in (pkg.provides | {Dependency(pkg.name)}):
+            if len(self._provides[p.name]) == 1:
+                del self._provides[p.name]
+            else:
+                self._provides[p.name].remove(pkg)
     
     def add(self, pkg):
         if pkg not in self:

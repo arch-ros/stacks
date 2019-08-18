@@ -16,13 +16,9 @@ class Job:
         self.tag = tag
         self.package = package
 
-    def can_run(self, dependency_resolver):
-        # If built contains all the dependencies for
-        # the package, run this job
-        dependencies = self.package.depends + self.package.make_depends
-        #missing = list(filter(lambda x: not x.satisfied_by(dependency_resolver), dependencies))
-        #print('{} missing {}'.format(self.package.name, missing))
-        return all(map(lambda x: x.satisfied_by(dependency_resolver), dependencies))
+    def missing_depends(self, depends_resolver):
+        dependencies = self.package.depends | self.package.make_depends
+        return list(filter(lambda x: not x.satisfied_by(depends_resolver), dependencies))
 
     def produces(self, package):
         my_name = self.package.parent if self.package.parent is not None else self.package.name
@@ -134,7 +130,7 @@ class Scheduler:
     def __init__(self, binaries, sources, dependency_resolver=None):
         self._binaries = binaries
         self._sources = sources
-        self._dependency_resolver = dependency_resolver
+        self.depends_resolver = dependency_resolver
         self.cron_tasks = list()
 
         # Things are taken from
@@ -163,23 +159,25 @@ class Scheduler:
 
             self._binaries.update()
             self._sources.update()
-            self._dependency_resolver.update()
+            self.depends_resolver.update()
             for pkg in self._sources:
                 if pkg in self._binaries:
                     continue
                 # if this package is produced
                 # by anything we have previously scheduled
-                if any([j.produces(pkg) for j in (self.queue.tasks + self.cron_tasks)]):
+                if any([j.produces(pkg) for j in self.cron_tasks]):
+                    continue
+                if any([j.produces(pkg) for j in self.queue.tasks]):
                     continue
                 if any([j.produces(pkg) for j in self.waiting]):
                     continue
+
                 job = Job(datetime.datetime.now(), pkg.tag, pkg)
                 self.waiting.add(job)
 
-            # The waiting jobs are waiting for dependencies
-            # (unlike queue.waiting, which are waiting for a free worker)
             for job in set(self.waiting):
-                if job.can_run(self._dependency_resolver):
+                missing_depends = job.missing_depends(self.depends_resolver)
+                if len(missing_depends) == 0:
                     self.waiting.remove(job)
                     await self.enqueue(job)
 

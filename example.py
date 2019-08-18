@@ -1,4 +1,3 @@
-
 import os
 import threading
 import asyncio
@@ -26,25 +25,25 @@ from stacks.events import *
 from stacks.database import *
 from stacks.job import *
 
-
-def create_ros_database():
+def create_source_database():
     # For aur source repository
     def update_fs(db, directory):
         return False
 
     def find_package_dirs(db, directory):
         dirs = []
-        for f in os.listdir(directory):
-            path = os.path.join(directory, f)
-            pkgbuild = os.path.join(path, 'PKGBUILD')
-            if os.path.isdir(path) and os.path.exists(pkgbuild):
-                dirs.append(path)
+        for d in os.listdir(directory):
+            for f in os.listdir(os.path.join(directory, d)):
+                path = os.path.join(directory, d, f)
+                pkgbuild = os.path.join(path, 'PKGBUILD')
+                if os.path.isdir(path) and os.path.exists(pkgbuild):
+                    dirs.append(path)
         return dirs
 
-    return SourceDatabase('ros-source', RUNTIME_DIR + '/packages/ros', find_package_dirs)
+    return SourceDatabase('source', RUNTIME_DIR + '/packages/', find_package_dirs)
 
 def create_worker(name):
-    return ChrootWorker(name, RUNTIME_DIR + '/chroots',
+    return ChrootWorker(name, RUNTIME_DIR + '/chroots/' + name,
                                RUNTIME_DIR + '/config/pacman_chroots.conf',
                                RUNTIME_DIR + '/scripts/mkarchroot',
                                RUNTIME_DIR + '/scripts/makechrootpkg',
@@ -54,10 +53,10 @@ async def main():
     logger = Logger('main')
 
     # repository to push to
-    push_repo = Repository('/repo/ros/x86_64', '/repo/ros/x86_64/ros.db.tar.xz')
+    push_repo = Repository('/repo/stacks/x86_64', '/repo/stacks/x86_64/stacks.db.tar.xz')
 
     # The built packages repository
-    built_packages = RemoteDatabase('built', RUNTIME_DIR + '/config/ros-repo/pacman.conf')
+    built_packages = RemoteDatabase('built', RUNTIME_DIR + '/config/stacks-repo/pacman.conf')
     # The arch linux packages, updated only at start
     arch_bin = RemoteDatabase('arch', RUNTIME_DIR + '/config/arch-repo/pacman.conf', True)
 
@@ -66,7 +65,7 @@ async def main():
     dependencies.update()
 
     # Combined source repository
-    sources = create_ros_database()
+    sources = create_source_database()
 
     # Create a build queue
     workers = [create_worker('worker1'), create_worker('worker2')]

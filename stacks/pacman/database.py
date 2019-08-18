@@ -14,12 +14,13 @@ def _from_alpm_pkg(pkg):
                       version=Version.parse(pkg.version),
                       arch=[pkg.arch],
                       groups=pkg.groups,
-                      depends=[Dependency.parse(x) for x in pkg.depends],
-                      opt_depends=[Dependency.parse(x) for x in pkg.optdepends],
-                      make_depends=[],
-                      check_depends=[],
-                      provides=pkg.provides,
-                      replaces=pkg.replaces,
+                      depends={Dependency.parse(x) for x in pkg.depends},
+                      opt_depends={Dependency.parse(x) for x in pkg.optdepends},
+                      make_depends=set(),
+                      check_depends=set(),
+                      provides={Dependency.parse(x) for x in pkg.provides},
+                      replaces={Dependency.parse(x) for x in pkg.replaces},
+                      conflicts={Dependency.parse(x) for x in pkg.conflicts},
                       parent=pkg.base if pkg.base != pkg.name else None)
     return package
 
