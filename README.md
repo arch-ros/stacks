@@ -13,6 +13,6 @@ among other build systems.
  * Directly uses libalpm via the python bindings to determine what packages are already in the binary repository.
  * Direct PKGBUILD dependency/metadata extraction into python objects
  * Nice web gui where you can see all the queues and logs (and can save history to a history.json file upon server exit)
- * Automatic time-based requeing of failed builds.
+ * Automatic time-based requeueing of failed builds.
 
 This is not meant to be a commercial-quality software build stack. It just offers a lightweight web gui (no interaction, meaning you can't manually requeue, unfortunately) and tight integration with pacman.
